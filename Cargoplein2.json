@@ -1,0 +1,4 @@
+{ "timestamp":"2025-03-09T17:15:13Z", "event":"Cargo", "Vessel":"Ship", "Count":792, "Inventory":[ 
+{ "Name":"polymers", "Count":5, "Stolen":0 }, 
+{ "Name":"steel", "Count":791, "Stolen":0 }
+ ] }

@@ -93,6 +93,7 @@ class This:
         self.threadCargo = None
         self.userName:str = ""
         self.Market_ID = 0
+        self.event =""      #can be Docked  / Undocked / STOP
         self.userNotSend:str = []
         self.isHidden = False
         self.url:str = ""
@@ -183,10 +184,9 @@ def plugin_stop() -> None:
     this.eventtfm.set()  
     this.lastlock.release()
 
-    this.lastlockCargo.acquire()      
-    this.dequetfmCargo.append("STOP")  
+    this.event = "STOP" 
     this.eventtfmCargo.set()  
-    this.lastlockCargo.release()
+   
 
     this.lastlockGet.acquire()      
     this.dequetfmGet.append("STOP")      
@@ -266,7 +266,13 @@ def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry
             #shutdown est la dernier ecriture du log et pas fini par un CRLF donc pas lisible immediatement.
         else:
            if (entry["event"].lower() == "docked"):
-                this.eventtfmCargo.set() 
+               this.event = "Docked"
+               this.Market_ID = entry['MarketID']
+               this.eventtfmCargo.set() 
+           elif (entry["event"].lower() == "undocked"):
+               this.event = "Undocked"
+               this.Market_ID = entry['MarketID']
+               this.eventtfmCargo.set() 
            checkbounty(entry)
            cestpartie()
 
@@ -615,23 +621,80 @@ def workerCargo(in_s):
     logger.info("workerCargo init")
     Continue = True
     Erreur = False
+    fname = os.path.join(this.LogDir,'Cargo.json')
     while Continue :
         logger.info(f'workerCargo waiting')
         if this.eventtfmCargo.wait():
             logger.info(f'workerCargo running')
-            this.eventtfmCargo.clear()
             if config.shutting_down:
                 Continue = False
+                this.eventtfmCargo.clear()
+                break
             else : 
-                #if docked take marketid and cargo.json
-                with open('C:\Users\Laurent\Saved Games\Frontier Developments\Elite Dangerous', 'r') as file:
-                    dockedCargo = json.load(file)
-                    logger.info(f'old json : {dockedCargo}')
-                #if undocked compare old json with new one
+                if this.event == "Docked":
+                    #if docked take marketid and cargo.json
+                    filej = open(fname, 'r') 
+                    dockedCargo = json.load(filej)
+                    logger.info(f'Market id  : {this.Market_ID}')
+                    filej.close()
+                    this.event = ""
+                    this.eventtfmCargo.clear()
+                elif this.event == "Undocked":
+                    #if undocked compare old json with new one
+                    # si pas vide au depart
+                    cc = dockedCargo["Count"]
+                    logger.info(f' Count {cc}')
+                    if (cc > 0):
+                        filej = open(fname, 'r') 
+                        undockedCargo = json.load(filej)
+                        logger.info(f'Market id  : {this.Market_ID}')
+                        filej.close()
+                        transactions = []
+                        transactions = get_diff(dockedCargo, undockedCargo)
+                        jsonout = json.dumps(transactions)
+                        jsonoutstrip = jsonout.replace('"','')
+                        logger.info(jsonoutstrip)
+                        # send to SM
+
+                    this.event = ""
+                    this.eventtfmCargo.clear()
+                elif this.event == "STOP":
+                    Continue = False
+                    this.eventtfmCargo.clear()
+                    break
+
                 #erreur = SendToServerCargo(lline)
                   
                                   
     logger.info('fin workerCargo')
+
+def get_diff(dockedCargo, undockedCargo):
+     table = []
+     bingo = False
+   
+     # for each item in dockedCargo at docking :
+     for item in dockedCargo['Inventory']:
+        name = item['Name']
+        # is present in cargo at undocking ?
+        for itemout in undockedCargo['Inventory']:
+            if name == itemout['Name']:
+                bingo = True
+                # combien en reste il ?
+                countout = item["Count"] - itemout['Count'] 
+                if countout > 0 :
+                    #on met ca en caisse
+                    transactions = {}
+                    transactions['name'] = name
+                    transactions['sell'] = countout
+                    table.append(transactions)
+        if (bingo == False):
+            transactions = {}
+            transactions['name'] = name
+            transactions['sell'] = item["Count"]
+            table.append(transactions)
+        bingo = False
+     return table
+
 def GetSendToServer(lline):
     global this
     #logger.info("GetSendToServer " + lline )
@@ -737,79 +800,4 @@ def GetWaitter(in_s):
 
 
 
-def Test():
-    global eventtfmGet
-    test_event_generate("LOSP", "Ally")
-    
-    test_event_generate("LOSP1", "Unkwown")
-   
-    test_event_generate("LOSP2", "Enemy")
-   
-    test_event_generate("LOSP3", "Ally")
-   
-    test_event_generate("LOSP4", "Unkwown")
-    
-    test_event_generate("LOSP5", "Enemy")
-   
-    test_event_generate("LOSP6", "Ally")
-   
-    test_event_generate("LOSP7", "Unkwown")
-   
-    test_event_generate("LOSP8", "Enemy")
-def test_event_generate(stat, iff):
-    global this 
-    global eventtfmGet
-   
-    logger.info("Test "+ stat + " " + iff)
-    if (asklocal(stat)):
-        logger.info("found "+ stat) 
-    else:   
-        logger.info("not found "+ stat)
-        this.lastlockGet.acquire()
-        squad = stat, iff
-        this.dequetfmGet.append(squad)
-        this.lastlockGet.release()
-        if (eventtfmGet.is_set()):
-            return
-        else:
-            eventtfmGet.set()         
-def GetWaitterForTest(in_s):
-    global this
-    global ws
-    local_loop = 0
-    logger.info("GetWaitterForTest init")
-    Erreur = False
-    Continu = True
-    while Continu:
-        logger.info(f'GetWaitterForTest waitting')
-        if in_s.wait():
-            logger.info(f'GetWaitterForTest running')  
-            llinelist = []
-            this.lastlockGet.acquire()
-            while (len(this.dequetfmGet) > 0):
-                llinelist.append(this.dequetfmGet.popleft())
-            this.lastlockGet.release() 
-          
-        for lline in llinelist:
-                    if (lline == ""):  
-                        logger.debug("None")
-                        erreur = False
-                    elif (lline=="STOP"):
-                        logger.info('Stop GetWaitterForTest')
-                        Continu = False
-                        break 
-                    else :
-                        erreur = False
-                        name, stat = lline
-                        squad = name, stat
-                        this.lastlockGetResp.acquire()
-                        this.dequetfmGetResp.append(squad)
-                        this.lastlockGetResp.release()
-        if (Continu):
-            in_s.clear()  
-            #this.system_link.event_generate('<<RETIFF>>', when='tail' )  
-            this.system_link.event_generate('<<RETIFF>>')  
-           
-           
-    logger.info('fin GetWaitterForTest')
   
