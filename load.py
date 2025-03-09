@@ -23,11 +23,14 @@ import winsound
 
 
 
+
 # This could also be returned from plugin_start3()
 plugin_name = os.path.basename(os.path.dirname(__file__))
 #to display text
 IFFSQR: Optional[tk.Frame] = None
 IFFList = []
+OldBounty = 0
+dir_path = ''
 
 
 # A Logger is used per 'found' plugin to make it easy to include the plugin's
@@ -75,28 +78,34 @@ if not logger.hasHandlers():
 # 15/02/24 3.20 : change detection crash server et reprise des com
 # 16/02/24 3.21 : Fix normal display
 # 28/02/24 3.22 : Log Squad if SM is offline
+# 11/02/25 3.23 : bip on bounty sup a 1M
+# 09103/25 3.30 : cargo management on docked and undocked
 
 
 
-PLUGIN_NAME = 'Michelle_3.22'
+PLUGIN_NAME = 'Michelle_3.30'
 
 class This:
     def __init__(self):
         self.system_link: tk.Widget = None
         self.thread = None
         self.threadGet = None
+        self.threadCargo = None
         self.userName:str = ""
+        self.Market_ID = 0
         self.userNotSend:str = []
         self.isHidden = False
         self.url:str = ""
         self.eventtfm = Event()
         self.eventtfmGet = Event()
+        self.eventtfmCargo = Event()
         self.lastlock = threading.Lock()
         self.dequetfm = deque(maxlen=1000)
         self.lastlockGet = threading.Lock()
         self.dequetfmGet = deque(maxlen=1000)
         self.lastlockGetResp = threading.Lock()
         self.dequetfmGetResp = deque(maxlen=1000)
+        self.lastlockCargo = threading.Lock()
         self.f = None
         self.LogDir = ""
         self.CurrentLogFile = ""
@@ -130,6 +139,7 @@ def plugin_start3(plugin_dir: str) -> str:
     global this
     global PLUGIN_NAME
     global IFFSQR
+    global dir_path
     logger.info(f'Plungin {PLUGIN_NAME} load from {plugin_dir}') 
     parser = ConfigParser()
     pp = os.path.join( plugin_dir, 'config.ini')
@@ -154,7 +164,11 @@ def plugin_start3(plugin_dir: str) -> str:
     #this.threadGet = Thread(target=GetWaitterForTest, name='EDTFMv2GET', args = (eventtfmGet, ))
     this.threadGet.daemon = False 
     this.threadGet.start()
+    this.threadCargo = Thread(target=workerCargo, name='EDTFMv2Cargo', args = (this.eventtfmCargo, ))
+    this.threadCargo.daemon = False 
+    this.threadCargo.start()
     FindLog() 
+    dir_path = os.path.dirname(os.path.realpath(__file__))
     return PLUGIN_NAME
 
 def plugin_stop() -> None:
@@ -168,6 +182,11 @@ def plugin_stop() -> None:
     this.Continue = False 
     this.eventtfm.set()  
     this.lastlock.release()
+
+    this.lastlockCargo.acquire()      
+    this.dequetfmCargo.append("STOP")  
+    this.eventtfmCargo.set()  
+    this.lastlockCargo.release()
 
     this.lastlockGet.acquire()      
     this.dequetfmGet.append("STOP")      
@@ -246,7 +265,10 @@ def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry
             forceSend(entry["event"])
             #shutdown est la dernier ecriture du log et pas fini par un CRLF donc pas lisible immediatement.
         else:
-            cestpartie()
+           if (entry["event"].lower() == "docked"):
+                this.eventtfmCargo.set() 
+           checkbounty(entry)
+           cestpartie()
 
 def displayTxtok(txt):
     global IFFSQR
@@ -400,6 +422,19 @@ def forceSend(shutdown):
             return
         else:
             this.eventtfm.set() 
+
+def checkbounty(entry):
+    global OldBounty
+    global dir_path
+    #logger.info(entry)
+    if "Bounty" in entry:
+        logger.info(f'Bounty  :  {entry["Bounty"]}')
+        bounty = entry["Bounty"]
+        if bounty > 10000:
+            if OldBounty != bounty :
+                OldBounty = bounty
+                winsound.PlaySound(dir_path+'\\bounty.wav',winsound.SND_FILENAME|winsound.SND_ASYNC)
+                #winsound.PlaySound(dir_path+'\\bounty.wav',winsound.SND_FILENAME)
 
 def cestpartie():
     global this 
@@ -574,6 +609,29 @@ def worker(in_s):
                                 #logger.info("comstatus set to 1 ")              
     logger.info('fin worker')
 
+def workerCargo(in_s):
+    global this
+    local_loop = 0
+    logger.info("workerCargo init")
+    Continue = True
+    Erreur = False
+    while Continue :
+        logger.info(f'workerCargo waiting')
+        if this.eventtfmCargo.wait():
+            logger.info(f'workerCargo running')
+            this.eventtfmCargo.clear()
+            if config.shutting_down:
+                Continue = False
+            else : 
+                #if docked take marketid and cargo.json
+                with open('C:\Users\Laurent\Saved Games\Frontier Developments\Elite Dangerous', 'r') as file:
+                    dockedCargo = json.load(file)
+                    logger.info(f'old json : {dockedCargo}')
+                #if undocked compare old json with new one
+                #erreur = SendToServerCargo(lline)
+                  
+                                  
+    logger.info('fin workerCargo')
 def GetSendToServer(lline):
     global this
     #logger.info("GetSendToServer " + lline )
