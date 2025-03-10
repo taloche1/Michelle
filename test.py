@@ -5,13 +5,10 @@ import json
 
 def workerCargo():
   
-   
-  
-    
-             
+  table = []
+            
   filej = open('Cargoplein.json', 'r') 
   dockedCargo = json.load(filej)                
-
   filej.close()
                    
   cc = dockedCargo["Count"]
@@ -20,9 +17,16 @@ def workerCargo():
     filej = open('Cargopvide.json', 'r') 
     undockedCargo = json.load(filej)
     filej.close()
+    tete = {}
+    tete['timestamp'] = undockedCargo['timestamp']
+    tete['event'] = 'Deposit'
+    tete['marketId'] = 236
+    table.append(tete)
     transactions = []
     transactions = get_diff(dockedCargo, undockedCargo)
-    jsonout = json.dumps(transactions)
+    tete['commodities'] = transactions  
+
+    jsonout = json.dumps(tete)
     jsonoutstrip = jsonout.replace('"','')
     print(jsonoutstrip)
 
@@ -32,8 +36,7 @@ def workerCargo():
 
 def get_diff(dockedCargo, undockedCargo):
      table = []
-     bingo = False
-   
+     bingo = False 
 
      print(f'dock json : {dockedCargo}')
      print(f'undock json : {undockedCargo}')

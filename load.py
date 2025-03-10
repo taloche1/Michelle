@@ -165,6 +165,7 @@ def plugin_start3(plugin_dir: str) -> str:
     #this.threadGet = Thread(target=GetWaitterForTest, name='EDTFMv2GET', args = (eventtfmGet, ))
     this.threadGet.daemon = False 
     this.threadGet.start()
+    this.eventtfmCargo.clear()
     this.threadCargo = Thread(target=workerCargo, name='EDTFMv2Cargo', args = (this.eventtfmCargo, ))
     this.threadCargo.daemon = False 
     this.threadCargo.start()
@@ -177,6 +178,7 @@ def plugin_stop() -> None:
     if (this.f):
         this.f.close()
 
+    this.event = "STOP" 
     # Signal thread to close and wait for it
     this.lastlock.acquire()      
     this.dequetfm.append("STOP")  
@@ -184,10 +186,8 @@ def plugin_stop() -> None:
     this.eventtfm.set()  
     this.lastlock.release()
 
-    this.event = "STOP" 
     this.eventtfmCargo.set()  
    
-
     this.lastlockGet.acquire()      
     this.dequetfmGet.append("STOP")      
     this.eventtfmGet.set()  
@@ -260,8 +260,18 @@ def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry
             this.isHidden = False
             logger.info("Commandant "+ this.userName)  
             vidagefile()
+            #load Cargo
+            this.Market_ID = entry['MarketID']
+            this.event = "Docked"
+            logger.info("Load Cargo for first time")
+            this.eventtfmCargo.set() 
+
     else:
         if (entry["event"].lower() == "shutdown"):
+            #check if something to send to server
+            this.event = "Undocked"
+            this.eventtfmCargo.set() 
+            #send shutdown to server
             forceSend(entry["event"])
             #shutdown est la dernier ecriture du log et pas fini par un CRLF donc pas lisible immediatement.
         else:
@@ -273,6 +283,11 @@ def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry
                this.event = "Undocked"
                this.Market_ID = entry['MarketID']
                this.eventtfmCargo.set() 
+           elif (entry["event"].lower() == "location"):
+               if ("Docked" in entry) and (entry["Docked"] == True):
+                   this.Market_ID = entry['MarketID']
+                   this.event = "Docked"
+                   this.eventtfmCargo.set() 
            checkbounty(entry)
            cestpartie()
 
@@ -449,7 +464,7 @@ def cestpartie():
     for line in this.f:
         llastline = line.strip()
         txt = searchInLine(llastline[0:80])  
-        logger.info(txt) 
+        #logger.info(txt) 
         if (txt != None):
             if (txt == "ShipTargeted"):
                 j = json.loads(llastline)
@@ -489,7 +504,7 @@ def cestpartie():
                                         squad = squadName,"Unkwown"
                                         addSquadStat(squad)
                             else:
-                                logger.info("Pilote Name / Squad already here: "+PilotName_Localised_N+ " " + squadName)
+                                logger.debug("Pilote Name / Squad already here: "+PilotName_Localised_N+ " " + squadName)
 
             elif (checkStatus(txt)):             
                 this.lastlock.acquire()
@@ -535,9 +550,9 @@ def SendToServer(lline):
             logger.error("Pas de reponse")
             erreur = True
         else:
-            logger.info(f"return status : {x.status_code}")
             if (x.status_code != 200):
                 erreur = True
+                logger.info(f"return status : {x.status_code}")
             else:
                 erreur = False
                 time.sleep(1) 
@@ -575,7 +590,7 @@ def worker(in_s):
             for lline in llinelist: 
                 #logger.info(f'receive : {lline[0:80]}')
                 if (lline == ""):  
-                    logger.debug("None")
+                    #logger.debug("None")
                     erreur = False
                 elif (lline=="STOP"):
                     logger.info('Stop worker')
@@ -622,61 +637,80 @@ def workerCargo(in_s):
     Continue = True
     Erreur = False
     fname = os.path.join(this.LogDir,'Cargo.json')
+    table = []
     while Continue :
-        logger.info(f'workerCargo waiting')
+        logger.info(f'worker Cargo waiting')
         if this.eventtfmCargo.wait():
-            logger.info(f'workerCargo running')
-            if config.shutting_down:
-                Continue = False
-                this.eventtfmCargo.clear()
-                break
-            else : 
-                if this.event == "Docked":
-                    #if docked take marketid and cargo.json
+            eventr = this.event
+            this.event = ""
+            marketr = this.Market_ID
+            logger.info(f'workerCargo running receive {eventr} for Market {marketr}')             
+            if eventr == "Docked":
+                #if docked take marketid and cargo.json
+                try:
                     filej = open(fname, 'r') 
                     dockedCargo = json.load(filej)
-                    logger.info(f'Market id  : {this.Market_ID}')
                     filej.close()
-                    this.event = ""
-                    this.eventtfmCargo.clear()
-                elif this.event == "Undocked":
-                    #if undocked compare old json with new one
-                    # si pas vide au depart
+                except:
+                    logger.info('worker Cargo Erreur loading Cargo.json')   
+            elif eventr == "Undocked":
+                #if undocked compare old json with new one
+                # si pas vide au depart
+                readok = True
+                try:
                     cc = dockedCargo["Count"]
-                    logger.info(f' Count {cc}')
+                except:
+                    logger.info('cannot read dockedcargo from memory')
+                    readok = False
+                if readok:
                     if (cc > 0):
-                        filej = open(fname, 'r') 
-                        undockedCargo = json.load(filej)
-                        logger.info(f'Market id  : {this.Market_ID}')
-                        filej.close()
+                        try:
+                            filej = open(fname, 'r') 
+                            undockedCargo = json.load(filej)
+                            filej.close()
+                        except:
+                            logger.info('worker Cargo Erreur loading Cargo.json')
+                        #logger.info(dockedCargo)
+                        #logger.info(undockedCargo)
+                        tete = {}
+                        tete['timestamp'] = undockedCargo['timestamp']
+                        tete['event'] = 'Deposit'
+                        tete['marketId'] = marketr
+                        table.append(tete)
                         transactions = []
                         transactions = get_diff(dockedCargo, undockedCargo)
-                        jsonout = json.dumps(transactions)
-                        jsonoutstrip = jsonout.replace('"','')
-                        logger.info(jsonoutstrip)
+                        #logger.info(transactions)
+                        tete['commodities'] = transactions  
+                        jsonout = json.dumps(tete)
+                        #jsonoutstrip = jsonout.replace('"','')
+                        logger.info(jsonout)
                         # send to SM
-
-                    this.event = ""
-                    this.eventtfmCargo.clear()
-                elif this.event == "STOP":
-                    Continue = False
-                    this.eventtfmCargo.clear()
-                    break
-
-                #erreur = SendToServerCargo(lline)
-                  
+                        erreur = SendToServer(jsonout)
+                        if (erreur):
+                            logger.info(f'cannot send Cargo to serveur')
+                    
+            elif eventr == "STOP":
+                Continue = False
+                break 
+            else:
+                logger.info('receive nawak')
+                logger.info(eventr)
+            this.eventtfmCargo.clear()     
                                   
     logger.info('fin workerCargo')
 
 def get_diff(dockedCargo, undockedCargo):
      table = []
      bingo = False
+     
    
      # for each item in dockedCargo at docking :
      for item in dockedCargo['Inventory']:
         name = item['Name']
+        #logger.info(name)
         # is present in cargo at undocking ?
         for itemout in undockedCargo['Inventory']:
+            #logger.info(itemout['Name'])
             if name == itemout['Name']:
                 bingo = True
                 # combien en reste il ?
@@ -702,16 +736,16 @@ def GetSendToServer(lline):
         paramse = {'userName': this.userName}  
         newHeaders = {'Content-type': 'application/json', 'Accept': 'application/json'}
         #newHeaders = {'Content-type': 'application/text; charset=UTF-8', 'Accept': 'application/json'}
-        logger.debug("request")
+        #logger.debug("request")
         x = requests.get(this.url, params=paramse,data=lline.encode('utf-8'),headers=newHeaders, timeout=(1,3))
-        logger.debug("end request")
+        #logger.debug("end request")
         time.sleep(1)
         if (x is None):
             logger.debug("Pas de reponse")
             x.close()
             return True, "None"
         else:
-            logger.info(f"Response GET : {x.text}")
+            #logger.info(f"Response GET : {x.text}")
             rep = x.text
             #x.close()
             if (x.status_code != 200):
@@ -746,14 +780,14 @@ def GetWaitter(in_s):
                 llinelist.append(this.dequetfmGet.popleft())
             this.lastlockGet.release()
             #mis ici car parfois pas dereponse a request et donc pas de debloquage du event
-            logger.debug("release get sem")
+            #logger.debug("release get sem")
             this.eventtfmGet.clear()
 
             Currentlist =[]  
             #nb = 0         
             for lline in llinelist:
-                logger.info(f'receive : {lline[0:80]}')
-                logger.debug(len(llinelist))
+                #logger.info(f'receive : {lline[0:80]}')
+                #logger.debug(len(llinelist))
                 #nb = nb+1
                 #logger.debug(nb)
                 if (lline == ""):  
@@ -767,7 +801,8 @@ def GetWaitter(in_s):
                 else :
                     j = json.loads(lline)
                     if (j["PilotName_Localised"] in Currentlist):
-                        logger.debug("skip "+ j["PilotName_Localised"]+ "already in list")
+                        #logger.debug("skip "+ j["PilotName_Localised"]+ "already in list")
+                        pass
                     else:
                         Currentlist.append(j["PilotName_Localised"])
                         erreur, answere = GetSendToServer(lline)
@@ -780,7 +815,7 @@ def GetWaitter(in_s):
                             #logger.debug(answere)
                             toGo = False
                             if (answere == "Wanted"):
-                                logger.info(j["PilotName_Localised"] + " Wanted")
+                                #logger.info(j["PilotName_Localised"] + " Wanted")
                                 squad = (j["PilotName_Localised"], answere)
                                 toGo = True
                             elif ("SquadronID" in j):
