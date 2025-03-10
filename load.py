@@ -1,3 +1,4 @@
+# ADMC plugin from CMDR Laurent Yess to Squadron Manager (BGS tools)
 
 from xml.etree.ElementPath import get_parent_map
 import requests
@@ -261,7 +262,7 @@ def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry
             logger.info("Commandant "+ this.userName)  
             vidagefile()
             #load Cargo
-            this.Market_ID = entry['MarketID']
+            #Marker id sera init plus tar sur un location ou sur un undocking
             this.event = "Docked"
             logger.info("Load Cargo for first time")
             this.eventtfmCargo.set() 
@@ -286,8 +287,8 @@ def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry
            elif (entry["event"].lower() == "location"):
                if ("Docked" in entry) and (entry["Docked"] == True):
                    this.Market_ID = entry['MarketID']
-                   this.event = "Docked"
-                   this.eventtfmCargo.set() 
+                   #Cargo already load in startup or videfile
+                   
            checkbounty(entry)
            cestpartie()
 
