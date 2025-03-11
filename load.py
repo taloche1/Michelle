@@ -23,7 +23,7 @@ import tkinter as tk
 import winsound
 
 import settings
-import module1
+import threaded
 
 
 
@@ -120,7 +120,7 @@ def plugin_start3(plugin_dir: str) -> str:
     this.threadGet.daemon = False 
     this.threadGet.start()
     this.eventtfmCargo.clear()
-    this.threadCargo = Thread(target=module1.workerCargo, name='EDTFMv2Cargo', args = (this.eventtfmCargo, ))
+    this.threadCargo = Thread(target=threaded.workerCargo, name='EDTFMv2Cargo', args = (this.eventtfmCargo, ))
     this.threadCargo.daemon = False 
     this.threadCargo.start()
     FindLog() 
@@ -527,7 +527,7 @@ def worker(in_s):
                         this.lastlock.acquire()
                         comstatusl = this.ComStatus
                         this.lastlock.release() 
-                        erreur = module1.SendToServer(lline)
+                        erreur = threaded.SendToServer(lline)
                         if erreur: 
                             if comstatusl != 2:
                                 this.lastlock.acquire()
