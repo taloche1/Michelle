@@ -65,9 +65,10 @@ dir_path = ''
 # 16/02/24 3.21 : Fix normal display
 # 28/02/24 3.22 : Log Squad if SM is offline
 # 11/02/25 3.23 : bip on bounty sup a 1M
-# 09103/25 3.30 : cargo management on docked and undocked
+# 09/03/25 3.30 : cargo management on docked and undocked
+# 11/03/25 3.31 : split code in modules
 
-PLUGIN_NAME = 'Michelle_3.30'
+PLUGIN_NAME = 'Michelle_3.31'
   
 
       
