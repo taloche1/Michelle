@@ -1,21 +1,63 @@
-from load import logger
+from load import this
 import os
+import time
+import json
+import unicodedata
+import requests
+from requests.exceptions import ConnectTimeout
+import settings
+#from settings import This
+
+this = settings.this
+
+
+def SendToServer(lline):
+    Erreur = False
+    global this
+    #settings.logger.info("SendTo server" + lline)
+    try:           
+        params = {'userName': this.userName}  
+        newHeaders = {'Content-type': 'application/json; charset=UTF-8', 'Accept': 'application/json'}
+        x = requests.post(this.url,params=params,data=lline.encode('utf-8'),headers=newHeaders, timeout=(3,6))  #10 second timeout
+        if (x is None):
+            settings.logger.error("Pas de reponse")
+            erreur = True
+        else:
+            if (x.status_code != 200):
+                erreur = True
+                settings.logger.info(f"return status : {x.status_code}")
+            else:
+                erreur = False
+                time.sleep(1) 
+    except requests.ConnectionError as err:
+        settings.logger.error("Cannot connected to "+ this.url)
+        erreur = True
+    except requests.Timeout as errt:
+        settings.logger.error("Timeout Error") 
+        erreur = True
+    except requests.exceptions.RequestException as e:
+        settings.logger.error(f'Erreur a la transmission vers le serveur EDTFM {e.args}')
+        erreur = True
+    except requests.exceptions.RequestException as e:
+        settings.logger.error(f'Erreur generique')
+        erreur = True   
+    return erreur
 
 def workerCargo(in_s):
     global this
-    local_loop = 0
-    logger.info("workerCargo init")
+    
+    settings.logger.info("workerCargo init")
     Continue = True
     Erreur = False
     fname = os.path.join(this.LogDir,'Cargo.json')
     table = []
     while Continue :
-        logger.info(f'worker Cargo waiting')
+        settings.logger.info(f'worker Cargo waiting')
         if this.eventtfmCargo.wait():
             eventr = this.event
             this.event = ""
             marketr = this.Market_ID
-            logger.info(f'workerCargo running receive {eventr} for Market {marketr}')             
+            settings.logger.info(f'workerCargo running receive {eventr} for Market {marketr}')             
             if eventr == "Docked":
                 #if docked take marketid and cargo.json
                 try:
@@ -23,7 +65,7 @@ def workerCargo(in_s):
                     dockedCargo = json.load(filej)
                     filej.close()
                 except:
-                    logger.info('worker Cargo Erreur loading Cargo.json')   
+                    settings.logger.info('worker Cargo Erreur loading Cargo.json')   
             elif eventr == "Undocked":
                 #if undocked compare old json with new one
                 # si pas vide au depart
@@ -31,7 +73,7 @@ def workerCargo(in_s):
                 try:
                     cc = dockedCargo["Count"]
                 except:
-                    logger.info('cannot read dockedcargo from memory')
+                    settings.logger.info('cannot read dockedcargo from memory')
                     readok = False
                 if readok:
                     if (cc > 0):
@@ -40,9 +82,9 @@ def workerCargo(in_s):
                             undockedCargo = json.load(filej)
                             filej.close()
                         except:
-                            logger.info('worker Cargo Erreur loading Cargo.json')
-                        #logger.info(dockedCargo)
-                        #logger.info(undockedCargo)
+                            settings.logger.info('worker Cargo Erreur loading Cargo.json')
+                        #settings.logger.info(dockedCargo)
+                        #settings.logger.info(undockedCargo)
                         tete = {}
                         tete['timestamp'] = undockedCargo['timestamp']
                         tete['event'] = 'Deposit'
@@ -50,25 +92,55 @@ def workerCargo(in_s):
                         table.append(tete)
                         transactions = []
                         transactions = get_diff(dockedCargo, undockedCargo)
-                        #logger.info(transactions)
+                        #settings.logger.info(transactions)
                         tete['commodities'] = transactions  
                         jsonout = json.dumps(tete)
                         #jsonoutstrip = jsonout.replace('"','')
-                        logger.info(jsonout)
+                        settings.logger.info(jsonout)
                         # send to SM
                         erreur = SendToServer(jsonout)
                         if (erreur):
-                            logger.info(f'cannot send Cargo to serveur')
+                            settings.logger.info(f'cannot send Cargo to serveur')
                     
             elif eventr == "STOP":
                 Continue = False
                 break 
             else:
-                logger.info('receive nawak')
-                logger.info(eventr)
+                settings.logger.info('receive nawak')
+                settings.logger.info(eventr)
             this.eventtfmCargo.clear()     
                                   
-    logger.info('fin workerCargo')
+    settings.logger.info('fin workerCargo')
+
+def get_diff(dockedCargo, undockedCargo):
+     table = []
+     bingo = False
+     
+   
+     # for each item in dockedCargo at docking :
+     for item in dockedCargo['Inventory']:
+        name = item['Name']
+        #settings.logger.info(name)
+        # is present in cargo at undocking ?
+        for itemout in undockedCargo['Inventory']:
+            #settings.logger.info(itemout['Name'])
+            if name == itemout['Name']:
+                bingo = True
+                # combien en reste il ?
+                countout = item["Count"] - itemout['Count'] 
+                if countout > 0 :
+                    #on met ca en caisse
+                    transactions = {}
+                    transactions['name'] = name
+                    transactions['sell'] = countout
+                    table.append(transactions)
+        if (bingo == False):
+            transactions = {}
+            transactions['name'] = name
+            transactions['sell'] = item["Count"]
+            table.append(transactions)
+        bingo = False
+     return table
 
 
 

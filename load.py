@@ -22,13 +22,13 @@ from typing import Optional, Tuple
 import tkinter as tk
 import winsound
 
+import settings
 import module1
 
 
 
 
-# This could also be returned from plugin_start3()
-plugin_name = os.path.basename(os.path.dirname(__file__))
+
 #to display text
 IFFSQR: Optional[tk.Frame] = None
 IFFList = []
@@ -36,24 +36,7 @@ OldBounty = 0
 dir_path = ''
 
 
-# A Logger is used per 'found' plugin to make it easy to include the plugin's
-# folder name in the logging output format.
-# NB: plugin_name here *must* be the plugin's folder name as per the preceding
-#     code, else the logger won't be properly set up.
-logger = logging.getLogger(f'{appname}.{plugin_name}')
 
-# If the Logger has handlers then it was already set up by the core code, else
-# it needs setting up here.
-if not logger.hasHandlers():
-    level = logging.INFO  # So logger.info(...) is equivalent to print()
-
-    logger.setLevel(level)
-    logger_channel = logging.StreamHandler()
-    logger_formatter = logging.Formatter(f'%(asctime)s - %(name)s - %(levelname)s - %(module)s:%(lineno)d:%(funcName)s: %(message)s')
-    logger_formatter.default_time_format = '%Y-%m-%d %H:%M:%S'
-    logger_formatter.default_msec_format = '%s.%03d'
-    logger_channel.setFormatter(logger_formatter)
-    logger.addHandler(logger_channel)
 
 
 # 08/05/22 2.1 : replace userId by cmdname from frontier log
@@ -84,43 +67,11 @@ if not logger.hasHandlers():
 # 11/02/25 3.23 : bip on bounty sup a 1M
 # 09103/25 3.30 : cargo management on docked and undocked
 
-
-
 PLUGIN_NAME = 'Michelle_3.30'
-
-class This:
-    def __init__(self):
-        self.system_link: tk.Widget = None
-        self.thread = None
-        self.threadGet = None
-        self.threadCargo = None
-        self.userName:str = ""
-        self.Market_ID = 0
-        self.event =""      #can be Docked  / Undocked / STOP
-        self.userNotSend:str = []
-        self.isHidden = False
-        self.url:str = ""
-        self.eventtfm = Event()
-        self.eventtfmGet = Event()
-        self.eventtfmCargo = Event()
-        self.lastlock = threading.Lock()
-        self.dequetfm = deque(maxlen=1000)
-        self.lastlockGet = threading.Lock()
-        self.dequetfmGet = deque(maxlen=1000)
-        self.lastlockGetResp = threading.Lock()
-        self.dequetfmGetResp = deque(maxlen=1000)
-        self.lastlockCargo = threading.Lock()
-        self.f = None
-        self.LogDir = ""
-        self.CurrentLogFile = ""
-        self.Continue = True
-        self.ComStatus = 0  #0 inconnu, 1 ok, 2 erreur de com
-        self.dobeep = False
-        self.isCheckedVer = False
-        self.checkVer = False     
+  
 
       
-this = This()
+this = settings.this
 
 def plugin_app(parent: tk.Frame) -> tk.Frame:
     """
@@ -144,7 +95,7 @@ def plugin_start3(plugin_dir: str) -> str:
     global PLUGIN_NAME
     global IFFSQR
     global dir_path
-    logger.info(f'Plungin {PLUGIN_NAME} load from {plugin_dir}') 
+    settings.logger.info(f'Plungin {PLUGIN_NAME} load from {plugin_dir}') 
     parser = ConfigParser()
     pp = os.path.join( plugin_dir, 'config.ini')
     parser.read(pp)
@@ -153,14 +104,14 @@ def plugin_start3(plugin_dir: str) -> str:
     beppbeep = parser.get('UserConfig', 'HostileBeep')
     listofhidden = parser.get('UserConfig', 'HiddenCMDRs').upper()
     this.userNotSend = listofhidden.split(",")
-    #logger.info("CMDRs not to send : "+listofhidden)
+    #settings.logger.info("CMDRs not to send : "+listofhidden)
     if (beppbeep == "Beep"):
         this.dobeep = True
     if (this.url == ""):
         status = tk.Label(IFFSQR, text="Erreur url not set", foreground="red") 
         status.grid(row=0, column=1, sticky='nesw')
         return PLUGIN_NAME
-    logger.debug('lancement worker thread...')
+    settings.logger.debug('lancement worker thread...')
     this.thread = Thread(target=worker, name='EDTFMv2', args = (this.eventtfm, ))
     this.thread.daemon = False 
     this.thread.start()
@@ -169,7 +120,7 @@ def plugin_start3(plugin_dir: str) -> str:
     this.threadGet.daemon = False 
     this.threadGet.start()
     this.eventtfmCargo.clear()
-    this.threadCargo = Thread(target=workerCargo, name='EDTFMv2Cargo', args = (this.eventtfmCargo, ))
+    this.threadCargo = Thread(target=module1.workerCargo, name='EDTFMv2Cargo', args = (this.eventtfmCargo, ))
     this.threadCargo.daemon = False 
     this.threadCargo.start()
     FindLog() 
@@ -197,7 +148,7 @@ def plugin_stop() -> None:
     this.lastlockGet.release()
     this.thread.join()  # type: ignore
     this.threadGet.join()  # type: ignore
-    logger.info('Plugin STOP threads joint')
+    settings.logger.info('Plugin STOP threads joint')
     this.thread = None
     this.threadGet = None
     return 
@@ -214,15 +165,15 @@ def FindLog():
             this.f.close
         this.f = open(newest,"r")
         this.CurrentLogFile = newest
-        logger.info("Open new log file "+ this.CurrentLogFile)
+        settings.logger.info("Open new log file "+ this.CurrentLogFile)
     else:
-        logger.info("keep old log file "+ this.CurrentLogFile) 
+        settings.logger.info("keep old log file "+ this.CurrentLogFile) 
 
 def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry: dict, state: dict) -> None:
     global this
     global IFFSQR
 
-    logger.debug("receive "+entry["event"])
+    settings.logger.debug("receive "+entry["event"])
 
     # a tester from monitor import monitor   monitor.is_live_galaxy()
 
@@ -230,12 +181,12 @@ def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry
         this.isCheckedVer = True  
         if 'GameVersion' in state:
             gv = state['GameVersion']
-            logger.info('GameVersion ' +gv)
+            settings.logger.info('GameVersion ' +gv)
             gvi = int(gv[0])
             if (gvi >= 4):
                 this.checkVer = True
         else:
-            logger.info('not found GameVersion')
+            settings.logger.info('not found GameVersion')
 
         if ( this.checkVer == False):
             status = tk.Label(IFFSQR, text="Elite release must be >= 4", foreground="red",bg="black") 
@@ -248,7 +199,7 @@ def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry
         status.grid(row=0, column=1, sticky='nesw')
         return
     if (entry["event"] == "StartUp" or entry["event"] == "LoadGame"):
-        logger.info("Maybe new log file " +entry["event"])
+        settings.logger.info("Maybe new log file " +entry["event"])
         this.userName = ""
         FindLog()
 
@@ -258,15 +209,15 @@ def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry
             this.isHidden = True
             status = tk.Label(IFFSQR, text="hidden CMDR", foreground="Yellow",bg="black") 
             status.grid(row=0, column=1, sticky='nesw')
-            logger.info("Commandant "+ cmdrname + " NOT SEND") 
+            settings.logger.info("Commandant "+ cmdrname + " NOT SEND") 
         else:
             this.isHidden = False
-            logger.info("Commandant "+ this.userName)  
+            settings.logger.info("Commandant "+ this.userName)  
             vidagefile()
             #load Cargo
             #Marker id sera init plus tar sur un location ou sur un undocking
             this.event = "Docked"
-            logger.info("Load Cargo for first time")
+            settings.logger.info("Load Cargo for first time")
             this.eventtfmCargo.set() 
 
     else:
@@ -308,7 +259,7 @@ def checkStatus(txt):
     this.lastlock.acquire()
     comstatus = this.ComStatus
     this.lastlock.release()
-    #logger.info(comstatus)
+    #settings.logger.info(comstatus)
     if (comstatus == 0):
         return True
     elif (comstatus == 1):       
@@ -357,20 +308,20 @@ def addSquadStat(squad):
     # pour eviter que le meme squad/name soit prit en double entre cestpartie et le thread de requete
     if (askdouble(namesquad)):
         return
-    #logger.info("in addsquad" +statsquad)
+    #settings.logger.info("in addsquad" +statsquad)
     if (lg > 7):
         del IFFList[0]
-        #logger.info(IFFList)
+        #settings.logger.info(IFFList)
         lg =len(IFFList)
         row = int(lg/2)+1
         for i in range(0,lg):
             namesquad, fg = colorSquad(IFFList[i])
             status = tk.Label(IFFSQR, text=namesquad,fg=fg,bg="black") 
             ligne = int(i/2)
-            #logger.info(ligne)
+            #settings.logger.info(ligne)
             col = i%2
-            #logger.info(col)
-            #logger.info(namesquad)
+            #settings.logger.info(col)
+            #settings.logger.info(namesquad)
             status.grid(row=ligne+1, column=col, sticky='nesw')
         namesquad, fg = colorSquad(squad)
         status = tk.Label(IFFSQR, text=namesquad,fg=fg,bg="black") 
@@ -412,7 +363,7 @@ def ret_erno(event=None) -> None:
 
 def vidagefile():
     global this 
-    logger.info("vidagefile")
+    settings.logger.info("vidagefile")
     nbtoparse = 0
     for line in this.f:
         llastline = line.strip() 
@@ -420,25 +371,25 @@ def vidagefile():
         txt = searchInLine(llastline[0:80])   
         if (txt != None) and (txt!="ShipTargeted"): 
             if (checkStatus(txt)):
-                #logger.info(llastline[0:80])
+                #settings.logger.info(llastline[0:80])
                 this.lastlock.acquire()
                 this.dequetfm.append(llastline)  
                 this.lastlock.release()
                 this.eventtfm.set()
 
     displayTxtok("fin lecture log")            
-    logger.info(f"fin vidagefile ({nbtoparse})" )
+    settings.logger.info(f"fin vidagefile ({nbtoparse})" )
     if (nbtoparse < 200):
         time.sleep(0.2) 
     #Test()
 
 def forceSend(shutdown):
     global this 
-    logger.info("force send "+shutdown)
+    settings.logger.info("force send "+shutdown)
     if this.isHidden == False: 
         checkStatus(shutdown)
         lline = this.f.readline()
-        #logger.info("1 "+lline)   
+        #settings.logger.info("1 "+lline)   
         this.lastlock.acquire()
         this.dequetfm.append(lline)
         this.lastlock.release()
@@ -450,9 +401,9 @@ def forceSend(shutdown):
 def checkbounty(entry):
     global OldBounty
     global dir_path
-    #logger.info(entry)
+    #settings.logger.info(entry)
     if "Bounty" in entry:
-        logger.info(f'Bounty  :  {entry["Bounty"]}')
+        settings.logger.info(f'Bounty  :  {entry["Bounty"]}')
         bounty = entry["Bounty"]
         if bounty > 10000:
             if OldBounty != bounty :
@@ -463,11 +414,11 @@ def checkbounty(entry):
 def cestpartie():
     global this 
     global IFFList
-    #logger.info("cestpartie")
+    #settings.logger.info("cestpartie")
     for line in this.f:
         llastline = line.strip()
         txt = searchInLine(llastline[0:80])  
-        #logger.info(txt) 
+        #settings.logger.info(txt) 
         if (txt != None):
             if (txt == "ShipTargeted"):
                 j = json.loads(llastline)
@@ -483,7 +434,7 @@ def cestpartie():
                                 squadName = j["SquadronID"]
                             else:
                                 squadName = "None"
-                            #logger.debug(pname +"( "+ squadName+ " ) -> "+  PilotName_Localised_N)
+                            #settings.logger.debug(pname +"( "+ squadName+ " ) -> "+  PilotName_Localised_N)
                             if (not asklocal( squadName, PilotName_Localised_N )):
                                 if this.isHidden:
                                     #add directly to status and exit
@@ -491,14 +442,14 @@ def cestpartie():
                                     addSquadStat(squad)
                                 else: 
                                     if checkStatus("Search cmdr "+pname):
-                                        #logger.debug("Pilote Name / Squad recherche : "+pname+ " " + squadName)
+                                        #settings.logger.debug("Pilote Name / Squad recherche : "+pname+ " " + squadName)
                                         this.lastlockGet.acquire()
                                         this.dequetfmGet.append(llastlineN)
                                         lng = len(this.dequetfmGet)
                                         this.lastlockGet.release()
                                         if (this.eventtfmGet.is_set()):
-                                            logger.debug("Getset event set, add to list")
-                                            logger.debug(lng)
+                                            settings.logger.debug("Getset event set, add to list")
+                                            settings.logger.debug(lng)
                                             return
                                         else:
                                             this.eventtfmGet.set() 
@@ -507,7 +458,7 @@ def cestpartie():
                                         squad = squadName,"Unkwown"
                                         addSquadStat(squad)
                             else:
-                                logger.debug("Pilote Name / Squad already here: "+PilotName_Localised_N+ " " + squadName)
+                                settings.logger.debug("Pilote Name / Squad already here: "+PilotName_Localised_N+ " " + squadName)
 
             elif (checkStatus(txt)):             
                 this.lastlock.acquire()
@@ -536,57 +487,23 @@ def searchInLine(line):
     txt = sub[:indicefin]
     for ev in MyList:
         if (ev == txt):
-            #logger.info("Find " + txt)
+            #settings.logger.info("Find " + txt)
             return ev
-    #logger.info("NOT Find " + txt)    
+    #settings.logger.info("NOT Find " + txt)    
     return None
    
-
-
-
-def SendToServer(lline):
-    Erreur = False
-    global this
-    #logger.info("SendTo server" + lline)
-    try:           
-        params = {'userName': this.userName}  
-        newHeaders = {'Content-type': 'application/json; charset=UTF-8', 'Accept': 'application/json'}
-        x = requests.post(this.url,params=params,data=lline.encode('utf-8'),headers=newHeaders, timeout=(3,6))  #10 second timeout
-        if (x is None):
-            logger.error("Pas de reponse")
-            erreur = True
-        else:
-            if (x.status_code != 200):
-                erreur = True
-                logger.info(f"return status : {x.status_code}")
-            else:
-                erreur = False
-                time.sleep(1) 
-    except requests.ConnectionError as err:
-        logger.error("Cannot connected to "+ this.url)
-        erreur = True
-    except requests.Timeout as errt:
-        logger.error("Timeout Error") 
-        erreur = True
-    except requests.exceptions.RequestException as e:
-        logger.error(f'Erreur a la transmission vers le serveur EDTFM {e.args}')
-        erreur = True
-    except requests.exceptions.RequestException as e:
-        logger.error(f'Erreur générique')
-        erreur = True   
-    return erreur
 
 def worker(in_s):
     global this
     local_loop = 0
-    logger.info(this.url)
-    logger.info("worker init")
+    settings.logger.info(this.url)
+    settings.logger.info("worker init")
     Continue = True
     Erreur = False
     while Continue :
-        logger.info(f'worker waiting')
+        settings.logger.info(f'worker waiting')
         if this.eventtfm.wait():
-            logger.info(f'worker running')
+            settings.logger.info(f'worker running')
             llinelist = []  
             this.lastlock.acquire()
             while (len(this.dequetfm) > 0):
@@ -594,23 +511,23 @@ def worker(in_s):
             this.lastlock.release() 
             this.eventtfm.clear()
             for lline in llinelist: 
-                #logger.info(f'receive : {lline[0:80]}')
+                #settings.logger.info(f'receive : {lline[0:80]}')
                 if (lline == ""):  
-                    #logger.debug("None")
+                    #settings.logger.debug("None")
                     erreur = False
                 elif (lline=="STOP"):
-                    logger.info('Stop worker')
+                    settings.logger.info('Stop worker')
                     erreur = False
                     Continue = False
                     break
                 else :
                     erreur = True
                     while (erreur == True and this.Continue == True):
-                        #logger.info("SendTo server" + lline)   
+                        #settings.logger.info("SendTo server" + lline)   
                         this.lastlock.acquire()
                         comstatusl = this.ComStatus
                         this.lastlock.release() 
-                        erreur = SendToServer(lline)
+                        erreur = module1.SendToServer(lline)
                         if erreur: 
                             if comstatusl != 2:
                                 this.lastlock.acquire()
@@ -633,125 +550,26 @@ def worker(in_s):
                                 if comstatusl == 2:
                                     this.system_link.event_generate('<<RETERNO>>', when='now' )   
                                 comstatusl =1
-                                #logger.info("comstatus set to 1 ")              
-    logger.info('fin worker')
-
-def workerCargo(in_s):
-    global this
-    local_loop = 0
-    logger.info("workerCargo init")
-    Continue = True
-    Erreur = False
-    fname = os.path.join(this.LogDir,'Cargo.json')
-    table = []
-    while Continue :
-        logger.info(f'worker Cargo waiting')
-        if this.eventtfmCargo.wait():
-            eventr = this.event
-            this.event = ""
-            marketr = this.Market_ID
-            logger.info(f'workerCargo running receive {eventr} for Market {marketr}')             
-            if eventr == "Docked":
-                #if docked take marketid and cargo.json
-                try:
-                    filej = open(fname, 'r') 
-                    dockedCargo = json.load(filej)
-                    filej.close()
-                except:
-                    logger.info('worker Cargo Erreur loading Cargo.json')   
-            elif eventr == "Undocked":
-                #if undocked compare old json with new one
-                # si pas vide au depart
-                readok = True
-                try:
-                    cc = dockedCargo["Count"]
-                except:
-                    logger.info('cannot read dockedcargo from memory')
-                    readok = False
-                if readok:
-                    if (cc > 0):
-                        try:
-                            filej = open(fname, 'r') 
-                            undockedCargo = json.load(filej)
-                            filej.close()
-                        except:
-                            logger.info('worker Cargo Erreur loading Cargo.json')
-                        #logger.info(dockedCargo)
-                        #logger.info(undockedCargo)
-                        tete = {}
-                        tete['timestamp'] = undockedCargo['timestamp']
-                        tete['event'] = 'Deposit'
-                        tete['marketId'] = marketr
-                        table.append(tete)
-                        transactions = []
-                        transactions = get_diff(dockedCargo, undockedCargo)
-                        #logger.info(transactions)
-                        tete['commodities'] = transactions  
-                        jsonout = json.dumps(tete)
-                        #jsonoutstrip = jsonout.replace('"','')
-                        logger.info(jsonout)
-                        # send to SM
-                        erreur = SendToServer(jsonout)
-                        if (erreur):
-                            logger.info(f'cannot send Cargo to serveur')
-                    
-            elif eventr == "STOP":
-                Continue = False
-                break 
-            else:
-                logger.info('receive nawak')
-                logger.info(eventr)
-            this.eventtfmCargo.clear()     
-                                  
-    logger.info('fin workerCargo')
-
-def get_diff(dockedCargo, undockedCargo):
-     table = []
-     bingo = False
-     
-   
-     # for each item in dockedCargo at docking :
-     for item in dockedCargo['Inventory']:
-        name = item['Name']
-        #logger.info(name)
-        # is present in cargo at undocking ?
-        for itemout in undockedCargo['Inventory']:
-            #logger.info(itemout['Name'])
-            if name == itemout['Name']:
-                bingo = True
-                # combien en reste il ?
-                countout = item["Count"] - itemout['Count'] 
-                if countout > 0 :
-                    #on met ca en caisse
-                    transactions = {}
-                    transactions['name'] = name
-                    transactions['sell'] = countout
-                    table.append(transactions)
-        if (bingo == False):
-            transactions = {}
-            transactions['name'] = name
-            transactions['sell'] = item["Count"]
-            table.append(transactions)
-        bingo = False
-     return table
+                                #settings.logger.info("comstatus set to 1 ")              
+    settings.logger.info('fin worker')
 
 def GetSendToServer(lline):
     global this
-    #logger.info("GetSendToServer " + lline )
+    #settings.logger.info("GetSendToServer " + lline )
     try:        
         paramse = {'userName': this.userName}  
         newHeaders = {'Content-type': 'application/json', 'Accept': 'application/json'}
         #newHeaders = {'Content-type': 'application/text; charset=UTF-8', 'Accept': 'application/json'}
-        #logger.debug("request")
+        #settings.logger.debug("request")
         x = requests.get(this.url, params=paramse,data=lline.encode('utf-8'),headers=newHeaders, timeout=(1,3))
-        #logger.debug("end request")
+        #settings.logger.debug("end request")
         time.sleep(1)
         if (x is None):
-            logger.debug("Pas de reponse")
+            settings.logger.debug("Pas de reponse")
             x.close()
             return True, "None"
         else:
-            #logger.info(f"Response GET : {x.text}")
+            #settings.logger.info(f"Response GET : {x.text}")
             rep = x.text
             #x.close()
             if (x.status_code != 200):
@@ -759,69 +577,69 @@ def GetSendToServer(lline):
             else:
                 return False, rep
     except requests.ConnectionError as err:
-        logger.debug("Cannot connected to "+ this.url)
+        settings.logger.debug("Cannot connected to "+ this.url)
         return True, "None"
     except requests.Timeout as errt:
-        logger.debug("Timeout Error") 
+        settings.logger.debug("Timeout Error") 
         return True, "None"
     except requests.exceptions.RequestException as e:
-        logger.debug(f'Erreur a la transmission vers le serveur EDTFM {e.args}')
+        settings.logger.debug(f'Erreur a la transmission vers le serveur EDTFM {e.args}')
         return True, "None"
     return True, "None"
 
 def GetWaitter(in_s):
     global this
     local_loop = 0
-    logger.info("GetWaitter init")
+    settings.logger.info("GetWaitter init")
     Continue = True
     Erreur = False
 
     while Continue :
-        logger.info(f'GetWaitter waiting')
+        settings.logger.info(f'GetWaitter waiting')
         if this.eventtfmGet.wait():
-            logger.info(f'GetWaitter running')  
+            settings.logger.info(f'GetWaitter running')  
             llinelist = []
             this.lastlockGet.acquire()
             while (len(this.dequetfmGet) > 0):
                 llinelist.append(this.dequetfmGet.popleft())
             this.lastlockGet.release()
             #mis ici car parfois pas dereponse a request et donc pas de debloquage du event
-            #logger.debug("release get sem")
+            #settings.logger.debug("release get sem")
             this.eventtfmGet.clear()
 
             Currentlist =[]  
             #nb = 0         
             for lline in llinelist:
-                #logger.info(f'receive : {lline[0:80]}')
-                #logger.debug(len(llinelist))
+                #settings.logger.info(f'receive : {lline[0:80]}')
+                #settings.logger.debug(len(llinelist))
                 #nb = nb+1
-                #logger.debug(nb)
+                #settings.logger.debug(nb)
                 if (lline == ""):  
-                    logger.debug("None")
+                    settings.logger.debug("None")
                     erreur = False
                 elif (lline=="STOP"):
-                    logger.info('Stop GetWaitter')
+                    settings.logger.info('Stop GetWaitter')
                     erreur = False
                     Continue = False
                     break
                 else :
                     j = json.loads(lline)
                     if (j["PilotName_Localised"] in Currentlist):
-                        #logger.debug("skip "+ j["PilotName_Localised"]+ "already in list")
+                        #settings.logger.debug("skip "+ j["PilotName_Localised"]+ "already in list")
                         pass
                     else:
                         Currentlist.append(j["PilotName_Localised"])
                         erreur, answere = GetSendToServer(lline)
                         if erreur: 
-                            logger.info("error GetSendToServer")
+                            settings.logger.info("error GetSendToServer")
                             # this.lastlockGet.acquire()
                             # this.ComStatus = 2
                             # this.lastlockGet.release()                        
                         else:
-                            #logger.debug(answere)
+                            #settings.logger.debug(answere)
                             toGo = False
                             if (answere == "Wanted"):
-                                #logger.info(j["PilotName_Localised"] + " Wanted")
+                                #settings.logger.info(j["PilotName_Localised"] + " Wanted")
                                 squad = (j["PilotName_Localised"], answere)
                                 toGo = True
                             elif ("SquadronID" in j):
@@ -832,12 +650,12 @@ def GetWaitter(in_s):
                                 this.dequetfmGetResp.append(squad)
                                 this.lastlockGetResp.release()
                                 this.system_link.event_generate('<<RETIFF>>', when='now' )  
-                                #logger.info("GetWaitter send to IHM "+ answere)
-            #logger.debug("fin du traitement lline")
+                                #settings.logger.info("GetWaitter send to IHM "+ answere)
+            #settings.logger.debug("fin du traitement lline")
            
             #in_s.clear() 
             # if (Continue):                                                        
-    logger.info('fin GetWaitter') 
+    settings.logger.info('fin GetWaitter') 
 
 
 
