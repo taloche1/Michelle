@@ -19,23 +19,20 @@ class This:
         self.system_link: tk.Widget = None
         self.thread = None
         self.threadGet = None
-        self.threadCargo = None
         self.userName:str = ""
-        self.Market_ID = 0
-        self.event =""      #can be Docked  / Undocked / STOP
+        self.dockedCargo = None
+        self.MarketID = None
         self.userNotSend:str = []
         self.isHidden = False
         self.url:str = ""
         self.eventtfm = Event()
         self.eventtfmGet = Event()
-        self.eventtfmCargo = Event()
         self.lastlock = threading.Lock()
         self.dequetfm = deque(maxlen=1000)
         self.lastlockGet = threading.Lock()
         self.dequetfmGet = deque(maxlen=1000)
         self.lastlockGetResp = threading.Lock()
         self.dequetfmGetResp = deque(maxlen=1000)
-        self.lastlockCargo = threading.Lock()
         self.f = None
         self.LogDir = ""
         self.CurrentLogFile = ""

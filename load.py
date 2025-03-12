@@ -66,7 +66,7 @@ dir_path = ''
 # 28/02/24 3.22 : Log Squad if SM is offline
 # 11/02/25 3.23 : bip on bounty sup a 1M
 # 09/03/25 3.30 : cargo management on docked and undocked
-# 11/03/25 3.31 : split code in modules
+# 11/03/25 3.31 : split code in modules and fix Deposit timestamp fix init load Cargo and Market
 
 PLUGIN_NAME = 'Michelle_3.31'
   
@@ -113,17 +113,12 @@ def plugin_start3(plugin_dir: str) -> str:
         status.grid(row=0, column=1, sticky='nesw')
         return PLUGIN_NAME
     settings.logger.debug('lancement worker thread...')
-    this.thread = Thread(target=worker, name='EDTFMv2', args = (this.eventtfm, ))
+    this.thread = Thread(target=threaded.worker, name='EDTFMv2', args = (this.eventtfm, ))
     this.thread.daemon = False 
     this.thread.start()
-    this.threadGet = Thread(target=GetWaitter, name='EDTFMv2GET', args = (this.eventtfmGet, ))
-    #this.threadGet = Thread(target=GetWaitterForTest, name='EDTFMv2GET', args = (eventtfmGet, ))
+    this.threadGet = Thread(target=threaded.GetWaitter, name='EDTFMv2GET', args = (this.eventtfmGet, ))
     this.threadGet.daemon = False 
     this.threadGet.start()
-    this.eventtfmCargo.clear()
-    this.threadCargo = Thread(target=threaded.workerCargo, name='EDTFMv2Cargo', args = (this.eventtfmCargo, ))
-    this.threadCargo.daemon = False 
-    this.threadCargo.start()
     FindLog() 
     dir_path = os.path.dirname(os.path.realpath(__file__))
     return PLUGIN_NAME
@@ -133,15 +128,13 @@ def plugin_stop() -> None:
     if (this.f):
         this.f.close()
 
-    this.event = "STOP" 
+    #this.event = "STOP" 
     # Signal thread to close and wait for it
     this.lastlock.acquire()      
     this.dequetfm.append("STOP")  
     this.Continue = False 
     this.eventtfm.set()  
     this.lastlock.release()
-
-    this.eventtfmCargo.set()  
    
     this.lastlockGet.acquire()      
     this.dequetfmGet.append("STOP")      
@@ -174,7 +167,7 @@ def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry
     global this
     global IFFSQR
 
-    settings.logger.debug("receive "+entry["event"])
+    settings.logger.debug("receive entry "+entry["event"])
 
     # a tester from monitor import monitor   monitor.is_live_galaxy()
 
@@ -215,36 +208,27 @@ def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry
             this.isHidden = False
             settings.logger.info("Commandant "+ this.userName)  
             vidagefile()
-            #load Cargo
-            #Marker id sera init plus tar sur un location ou sur un undocking
-            this.event = "Docked"
-            settings.logger.info("Load Cargo for first time")
-            this.eventtfmCargo.set() 
-
-    else:
-        if (entry["event"].lower() == "shutdown"):
-            #check if something to send to server
-            this.event = "Undocked"
-            this.eventtfmCargo.set() 
+            #load Cargo for init
+            settings.logger.info('load Cargo.json for init')
+            try:
+               fname = os.path.join(this.LogDir,'Cargo.json')
+               filej = open(fname, 'r') 
+               this.dockedCargo = json.load(filej)
+               filej.close()
+            except:
+                settings.logger.info('Erreur loading Cargo.json')
+    else:      
+        if (entry["event"] == "Shutdown"):
             #send shutdown to server
             forceSend(entry["event"])
-            #shutdown est la dernier ecriture du log et pas fini par un CRLF donc pas lisible immediatement.
-        else:
-           if (entry["event"].lower() == "docked"):
-               this.event = "Docked"
-               this.Market_ID = entry['MarketID']
-               this.eventtfmCargo.set() 
-           elif (entry["event"].lower() == "undocked"):
-               this.event = "Undocked"
-               this.Market_ID = entry['MarketID']
-               this.eventtfmCargo.set() 
-           elif (entry["event"].lower() == "location"):
-               if ("Docked" in entry) and (entry["Docked"] == True):
-                   this.Market_ID = entry['MarketID']
-                   #Cargo already load in startup or videfile
-                   
-           checkbounty(entry)
-           cestpartie()
+            #shutdown est la dernier ecriture du log et pas fini par un CRLF donc pas lisible immediatement. 
+        elif (entry["event"] == "Location") and (not this.MarketID):
+            if ("Docked" in entry) and (entry["Docked"] == True):
+                  #load marketid for init it in startup
+                  this.Market_ID = entry['MarketID']
+                  settings.logger.info('load market id for init')       
+        checkbounty(entry)
+        cestpartie()
 
 def displayTxtok(txt):
     global IFFSQR
@@ -382,7 +366,6 @@ def vidagefile():
     settings.logger.info(f"fin vidagefile ({nbtoparse})" )
     if (nbtoparse < 200):
         time.sleep(0.2) 
-    #Test()
 
 def forceSend(shutdown):
     global this 
@@ -390,7 +373,7 @@ def forceSend(shutdown):
     if this.isHidden == False: 
         checkStatus(shutdown)
         lline = this.f.readline()
-        #settings.logger.info("1 "+lline)   
+        settings.logger.info(f' ForceSend {lline}')   
         this.lastlock.acquire()
         this.dequetfm.append(lline)
         this.lastlock.release()
@@ -406,7 +389,7 @@ def checkbounty(entry):
     if "Bounty" in entry:
         settings.logger.info(f'Bounty  :  {entry["Bounty"]}')
         bounty = entry["Bounty"]
-        if bounty > 10000:
+        if bounty > 1000000:
             if OldBounty != bounty :
                 OldBounty = bounty
                 winsound.PlaySound(dir_path+'\\bounty.wav',winsound.SND_FILENAME|winsound.SND_ASYNC)
@@ -461,7 +444,8 @@ def cestpartie():
                             else:
                                 settings.logger.debug("Pilote Name / Squad already here: "+PilotName_Localised_N+ " " + squadName)
 
-            elif (checkStatus(txt)):             
+            elif (checkStatus(txt)): 
+                settings.logger.info(f'read from file {llastline}')
                 this.lastlock.acquire()
                 this.dequetfm.append(llastline)
                 this.lastlock.release()
@@ -492,171 +476,7 @@ def searchInLine(line):
             return ev
     #settings.logger.info("NOT Find " + txt)    
     return None
-   
 
-def worker(in_s):
-    global this
-    local_loop = 0
-    settings.logger.info(this.url)
-    settings.logger.info("worker init")
-    Continue = True
-    Erreur = False
-    while Continue :
-        settings.logger.info(f'worker waiting')
-        if this.eventtfm.wait():
-            settings.logger.info(f'worker running')
-            llinelist = []  
-            this.lastlock.acquire()
-            while (len(this.dequetfm) > 0):
-                llinelist.append(this.dequetfm.popleft())
-            this.lastlock.release() 
-            this.eventtfm.clear()
-            for lline in llinelist: 
-                #settings.logger.info(f'receive : {lline[0:80]}')
-                if (lline == ""):  
-                    #settings.logger.debug("None")
-                    erreur = False
-                elif (lline=="STOP"):
-                    settings.logger.info('Stop worker')
-                    erreur = False
-                    Continue = False
-                    break
-                else :
-                    erreur = True
-                    while (erreur == True and this.Continue == True):
-                        #settings.logger.info("SendTo server" + lline)   
-                        this.lastlock.acquire()
-                        comstatusl = this.ComStatus
-                        this.lastlock.release() 
-                        erreur = threaded.SendToServer(lline)
-                        if erreur: 
-                            if comstatusl != 2:
-                                this.lastlock.acquire()
-                                this.ComStatus = 2
-                                this.lastlock.release()  
-                                comstatusl = 2
-                                this.system_link.event_generate('<<RETERNO>>', when='now' )                    
-                            #stop send to serveur for 10 seconds x 6 (10 sec for permit stop app) try resend lline after
-                            for number in range(6):
-                                time.sleep(10)
-                                local_loop = local_loop +1
-                            # on ne sort jamais sauf correction de erreur de com du while
-                            if config.shutting_down:
-                                erreur = False
-                        else:
-                            if comstatusl != 1:
-                                this.lastlock.acquire()
-                                this.ComStatus = 1
-                                this.lastlock.release() 
-                                if comstatusl == 2:
-                                    this.system_link.event_generate('<<RETERNO>>', when='now' )   
-                                comstatusl =1
-                                #settings.logger.info("comstatus set to 1 ")              
-    settings.logger.info('fin worker')
-
-def GetSendToServer(lline):
-    global this
-    #settings.logger.info("GetSendToServer " + lline )
-    try:        
-        paramse = {'userName': this.userName}  
-        newHeaders = {'Content-type': 'application/json', 'Accept': 'application/json'}
-        #newHeaders = {'Content-type': 'application/text; charset=UTF-8', 'Accept': 'application/json'}
-        #settings.logger.debug("request")
-        x = requests.get(this.url, params=paramse,data=lline.encode('utf-8'),headers=newHeaders, timeout=(1,3))
-        #settings.logger.debug("end request")
-        time.sleep(1)
-        if (x is None):
-            settings.logger.debug("Pas de reponse")
-            x.close()
-            return True, "None"
-        else:
-            #settings.logger.info(f"Response GET : {x.text}")
-            rep = x.text
-            #x.close()
-            if (x.status_code != 200):
-                return True, rep
-            else:
-                return False, rep
-    except requests.ConnectionError as err:
-        settings.logger.debug("Cannot connected to "+ this.url)
-        return True, "None"
-    except requests.Timeout as errt:
-        settings.logger.debug("Timeout Error") 
-        return True, "None"
-    except requests.exceptions.RequestException as e:
-        settings.logger.debug(f'Erreur a la transmission vers le serveur EDTFM {e.args}')
-        return True, "None"
-    return True, "None"
-
-def GetWaitter(in_s):
-    global this
-    local_loop = 0
-    settings.logger.info("GetWaitter init")
-    Continue = True
-    Erreur = False
-
-    while Continue :
-        settings.logger.info(f'GetWaitter waiting')
-        if this.eventtfmGet.wait():
-            settings.logger.info(f'GetWaitter running')  
-            llinelist = []
-            this.lastlockGet.acquire()
-            while (len(this.dequetfmGet) > 0):
-                llinelist.append(this.dequetfmGet.popleft())
-            this.lastlockGet.release()
-            #mis ici car parfois pas dereponse a request et donc pas de debloquage du event
-            #settings.logger.debug("release get sem")
-            this.eventtfmGet.clear()
-
-            Currentlist =[]  
-            #nb = 0         
-            for lline in llinelist:
-                #settings.logger.info(f'receive : {lline[0:80]}')
-                #settings.logger.debug(len(llinelist))
-                #nb = nb+1
-                #settings.logger.debug(nb)
-                if (lline == ""):  
-                    settings.logger.debug("None")
-                    erreur = False
-                elif (lline=="STOP"):
-                    settings.logger.info('Stop GetWaitter')
-                    erreur = False
-                    Continue = False
-                    break
-                else :
-                    j = json.loads(lline)
-                    if (j["PilotName_Localised"] in Currentlist):
-                        #settings.logger.debug("skip "+ j["PilotName_Localised"]+ "already in list")
-                        pass
-                    else:
-                        Currentlist.append(j["PilotName_Localised"])
-                        erreur, answere = GetSendToServer(lline)
-                        if erreur: 
-                            settings.logger.info("error GetSendToServer")
-                            # this.lastlockGet.acquire()
-                            # this.ComStatus = 2
-                            # this.lastlockGet.release()                        
-                        else:
-                            #settings.logger.debug(answere)
-                            toGo = False
-                            if (answere == "Wanted"):
-                                #settings.logger.info(j["PilotName_Localised"] + " Wanted")
-                                squad = (j["PilotName_Localised"], answere)
-                                toGo = True
-                            elif ("SquadronID" in j):
-                                squad = (j["SquadronID"], answere)
-                                toGo = True
-                            if (toGo):
-                                this.lastlockGetResp.acquire()
-                                this.dequetfmGetResp.append(squad)
-                                this.lastlockGetResp.release()
-                                this.system_link.event_generate('<<RETIFF>>', when='now' )  
-                                #settings.logger.info("GetWaitter send to IHM "+ answere)
-            #settings.logger.debug("fin du traitement lline")
-           
-            #in_s.clear() 
-            # if (Continue):                                                        
-    settings.logger.info('fin GetWaitter') 
 
 
 
