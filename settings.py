@@ -58,3 +58,8 @@ def init():
         logger_formatter.default_msec_format = '%s.%03d'
         logger_channel.setFormatter(logger_formatter)
         logger.addHandler(logger_channel)
+
+def clean():
+     this.dockedCargo = None
+     this.MarketID = None
+     this.userName = ""

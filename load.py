@@ -66,7 +66,7 @@ dir_path = ''
 # 28/02/24 3.22 : Log Squad if SM is offline
 # 11/02/25 3.23 : bip on bounty sup a 1M
 # 09/03/25 3.30 : cargo management on docked and undocked
-# 11/03/25 3.31 : split code in modules and fix Deposit timestamp fix init load Cargo and Market
+# 11/03/25 3.31 : split code in modules and fix Deposit timestamp fixinit load Cargo and Market
 
 PLUGIN_NAME = 'Michelle_3.31'
   
@@ -193,8 +193,9 @@ def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry
         status.grid(row=0, column=1, sticky='nesw')
         return
     if (entry["event"] == "StartUp" or entry["event"] == "LoadGame"):
+        #clean global
+        settings.clean()
         settings.logger.info("Maybe new log file " +entry["event"])
-        this.userName = ""
         FindLog()
 
     if (this.userName != cmdrname):
@@ -445,7 +446,7 @@ def cestpartie():
                                 settings.logger.debug("Pilote Name / Squad already here: "+PilotName_Localised_N+ " " + squadName)
 
             elif (checkStatus(txt)): 
-                settings.logger.info(f'read from file {llastline}')
+                #settings.logger.info(f'read from file {llastline}')
                 this.lastlock.acquire()
                 this.dequetfm.append(llastline)
                 this.lastlock.release()
