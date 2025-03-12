@@ -67,8 +67,9 @@ dir_path = ''
 # 11/02/25 3.23 : bip on bounty sup a 1M
 # 09/03/25 3.30 : cargo management on docked and undocked
 # 11/03/25 3.31 : split code in modules and fix Deposit timestamp fixinit load Cargo and Market
+# 11/03/25 3.32 : fix init Cargo and Market with market fleet bug
 
-PLUGIN_NAME = 'Michelle_3.31'
+PLUGIN_NAME = 'Michelle_3.32'
   
 
       
@@ -167,7 +168,7 @@ def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry
     global this
     global IFFSQR
 
-    settings.logger.debug("receive entry "+entry["event"])
+    #settings.logger.debug("receive entry "+entry["event"])
 
     # a tester from monitor import monitor   monitor.is_live_galaxy()
 
@@ -197,6 +198,9 @@ def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry
         settings.clean()
         settings.logger.info("Maybe new log file " +entry["event"])
         FindLog()
+        #load Cargo for init
+        this.dockedCargo = state['CargoJSON']
+        settings.logger.info(f'read Cargo for init {this.dockedCargo}')
 
     if (this.userName != cmdrname):
         this.userName = cmdrname
@@ -209,25 +213,19 @@ def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry
             this.isHidden = False
             settings.logger.info("Commandant "+ this.userName)  
             vidagefile()
-            #load Cargo for init
-            settings.logger.info('load Cargo.json for init')
-            try:
-               fname = os.path.join(this.LogDir,'Cargo.json')
-               filej = open(fname, 'r') 
-               this.dockedCargo = json.load(filej)
-               filej.close()
-            except:
-                settings.logger.info('Erreur loading Cargo.json')
     else:      
         if (entry["event"] == "Shutdown"):
             #send shutdown to server
             forceSend(entry["event"])
             #shutdown est la dernier ecriture du log et pas fini par un CRLF donc pas lisible immediatement. 
+        elif (entry["event"] == "ShutDown"):
+            #crash game
+            forceSendCrash()
         elif (entry["event"] == "Location") and (not this.MarketID):
             if ("Docked" in entry) and (entry["Docked"] == True):
                   #load marketid for init it in startup
                   this.Market_ID = entry['MarketID']
-                  settings.logger.info('load market id for init')       
+                  settings.logger.info(f'load market id for init {this.MarketID}')       
         checkbounty(entry)
         cestpartie()
 
@@ -377,6 +375,21 @@ def forceSend(shutdown):
         settings.logger.info(f' ForceSend {lline}')   
         this.lastlock.acquire()
         this.dequetfm.append(lline)
+        this.lastlock.release()
+        if (this.eventtfm.is_set()):
+            return
+        else:
+            this.eventtfm.set() 
+def forceSendCrash():
+    global this 
+    settings.logger.info("force send Crash")
+    if this.isHidden == False: 
+        checkStatus('ShutDown')
+        lline = this.f.readline()
+        llineC = lline[0,46] + '"Shutdown"}'
+        settings.logger.info(f' ForceSend crash  {llineC}')  
+        this.lastlock.acquire()
+        this.dequetfm.append(llineC)
         this.lastlock.release()
         if (this.eventtfm.is_set()):
             return

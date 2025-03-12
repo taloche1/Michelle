@@ -85,6 +85,12 @@ def worker(in_s):
     settings.logger.info("worker init")
     Continue = True
     Erreur = False
+    #TEST log in file
+    testname =  os.path.join(this.LogDir,'logSend.txt')
+    logt = open(testname, 'a')
+    logt.write('New session \n\n\n')
+  
+
     while Continue :
         settings.logger.info(f'worker waiting')
         if this.eventtfm.wait():
@@ -114,10 +120,9 @@ def worker(in_s):
                         if ("Docked" in j) and (j["Docked"] == True):
                             #load marketid for init it in startup
                             this.MarketID = j['MarketID']
-                            settings.logger.info('load market id for init')    
+                            settings.logger.info(f'load market id for init {this.MarketID}')    
                     if (lline.find("Docked", 0, 80) > 0):
                         #if docked take cargo.json
-                        settings.logger.info('Docked load Cargo')
                         try:
                             filej = open(fname, 'r') 
                             this.dockedCargo = json.load(filej)
@@ -128,6 +133,7 @@ def worker(in_s):
                         #if undocked compare old json with new one
                         # si pas vide au depart
                         #settings.logger.info(f'avant {dockedCargo}')
+                        logt.write('Cargo avant  '+json.dumps(this.dockedCargo)+"\n")
                         if this.dockedCargo:
                             cc = this.dockedCargo["Count"]
                             table = []
@@ -152,20 +158,35 @@ def worker(in_s):
                                             settings.logger.warning('cannot read MarketID from memory')
                                     table.append(tete)
                                     transactions = []
+                                    
+                                    logt.write('Cargo apres  '+json.dumps(undockedCargo)+"\n")
+                                    logt.write('MarketID apres  '+str(tete['marketId'])+"\n")
                                     transactions = get_diff(this.dockedCargo, undockedCargo)
+                                    logt.write('transactions  '+json.dumps(transactions)+"\n")
                                     if (transactions):
                                         #settings.logger.info(transactions)
                                         tete['commodities'] = transactions  
                                         jsonout = json.dumps(tete)
                                         #jsonoutstrip = jsonout.replace('"','')
                                         settings.logger.info(jsonout)
+                                      
+                                        ts = str(time.time())
+                                        logt.writelines(ts + ' '+jsonout+"\n")
+                                        logt.flush()
                                         SendLine(jsonout)
+                                        #time.sleep(0.2)
+                            else:
+                                logt.write('Undocked avec Cargo vide au moment du docked\n')
                         else:
                             settings.logger.warning('cannot read dockedcargo from memory')
+                    ts = str(time.time())
+                    logt.writelines(ts + ' '+lline+"\n")
+                    logt.flush()
                     #settings.logger.info(lline)
                     SendLine(lline)
                                 
     settings.logger.info('fin worker')
+    logt.close()
 
 def GetSendToServer(lline):
     global this
