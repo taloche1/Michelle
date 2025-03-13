@@ -67,7 +67,7 @@ dir_path = ''
 # 11/02/25 3.23 : bip on bounty sup a 1M
 # 09/03/25 3.30 : cargo management on docked and undocked
 # 11/03/25 3.31 : split code in modules and fix Deposit timestamp fixinit load Cargo and Market
-# 11/03/25 3.32 : fix init Cargo and Market with market fleet bug
+# 11/03/25 3.32 : fix init Cargo and Market with market fleet bug fix shutdown remove ShutDown
 
 PLUGIN_NAME = 'Michelle_3.32'
   
@@ -168,7 +168,7 @@ def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry
     global this
     global IFFSQR
 
-    #settings.logger.debug("receive entry "+entry["event"])
+    #settings.logger.info("receive entry "+entry["event"])
 
     # a tester from monitor import monitor   monitor.is_live_galaxy()
 
@@ -202,11 +202,7 @@ def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry
         if not this.dockedCargo:
             this.dockedCargo = state['CargoJSON']
             settings.logger.info(f'read Cargo for init {this.dockedCargo}')
-    elif (entry["event"] == "Cargo") and (not this.dockedCargo):
-        #load Cargo for init : EDMC lauched, start Elite
-        #settings.logger.info(f' Entry  Cargo {entry}')
-        this.dockedCargo = entry
-        settings.logger.info(f'read Cargo for init {this.dockedCargo}')
+    
 
     if (this.userName != cmdrname):
         this.userName = cmdrname
@@ -220,18 +216,26 @@ def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry
             settings.logger.info("Commandant "+ this.userName)  
             vidagefile()
     else:      
-        # if (entry["event"] == "Shutdown"):
-        #     #send shutdown to server
-        #     forceSend(entry["event"])
-        #     #shutdown est la dernier ecriture du log et pas fini par un CRLF donc pas lisible immediatement. 
-        if (entry["event"] == "ShutDown"):
-            #crash game, start menu, stop game
-            forceSendCrash()
+        if (entry["event"] == "Shutdown"):
+             settings.logger.info('receive Shutdown')
+             #send shutdown to server
+             forceSend(entry["event"])
+             #shutdown est la dernier ecriture du log et pas fini par un CRLF donc pas lisible immediatement. 
+        # elif (entry["event"] == "ShutDown"):
+        #     settings.logger.info('receive ShutDown')
+        #     #crash game, start menu, stop game
+        #     forceSendCrash()
         elif (entry["event"] == "Location") and (not this.MarketID):
             if ("Docked" in entry) and (entry["Docked"] == True):
                   #load marketid for init it in startup
                   this.Market_ID = entry['MarketID']
-                  settings.logger.info(f'load market id for init {this.MarketID}')       
+                  settings.logger.info(f'load market id for init {this.MarketID}')  
+        elif (entry["event"] == "Cargo") and (not this.dockedCargo):
+            #load Cargo for init : EDMC lauched, start Elite
+            #settings.logger.info(f' Entry  Cargo {entry}')
+            this.dockedCargo = entry
+            settings.logger.info(f'read Cargo for init {this.dockedCargo}')         
+            
         checkbounty(entry)
         cestpartie()
 
@@ -374,34 +378,33 @@ def vidagefile():
 
 def forceSend(shutdown):
     global this 
-    settings.logger.info("force send "+shutdown)
-    if (this.isHidden == False) and (this.shutdown == False): 
-        checkStatus(shutdown)
-        this.shutdown = True
-        lline = this.f.readline()
-        settings.logger.info(f' ForceSend {lline}')   
-        this.lastlock.acquire()
-        this.dequetfm.append(lline)
-        this.lastlock.release()
-        if (this.eventtfm.is_set()):
-            return
-        else:
+    if (this.isHidden == False):
+       if (this.shutdown == False): 
+            checkStatus(shutdown)
+            this.shutdown = True
+            #lline = this.f.readline()
+            lline = this.f.read()
+            settings.logger.info(f' ForceSend {lline}')   
+            this.lastlock.acquire()
+            this.dequetfm.append(lline)
+            this.lastlock.release()
+            if (this.eventtfm.is_set()):
+                time.sleep(3)
             this.eventtfm.set() 
 def forceSendCrash():
     global this 
-    settings.logger.info("force send Crash")
-    if (this.isHidden == False) and (this.shutdown == False): 
-        checkStatus('ShutDown')
-        this.shutdown = True
-        lline = this.f.readline()
-        llineC = lline[0,46] + '"Shutdown"'
-        settings.logger.info(f' ForceSend crash  {llineC}')  
-        this.lastlock.acquire()
-        this.dequetfm.append(llineC)
-        this.lastlock.release()
-        if (this.eventtfm.is_set()):
-            return
-        else:
+    if (this.isHidden == False):
+       if (this.shutdown == False): 
+            checkStatus('ShutDown')
+            this.shutdown = True
+            lline = this.f.readline()
+            llineC = lline[0:46] + 'Shutdown'
+            settings.logger.info(f' ForceSend crash  {llineC}')  
+            this.lastlock.acquire()
+            this.dequetfm.append(llineC)
+            this.lastlock.release()
+            if (this.eventtfm.is_set()):
+                time.sleep(3)
             this.eventtfm.set() 
 
 def checkbounty(entry):

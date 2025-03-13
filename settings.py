@@ -65,3 +65,5 @@ def clean():
      this.MarketID = None
      this.userName = ""
      this.shutdown = False
+     this.MarketID = None
+     this.dockedCargo = None

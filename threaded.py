@@ -124,6 +124,8 @@ def worker(in_s):
                             settings.logger.info(f'load market id for init {this.MarketID}')    
                     if (lline.find("Docked", 0, 80) > 0):
                         #if docked take cargo.json
+                        ## le fichier json n'est pas encore pret, il peut contenir les ancienne valeur
+                        time.sleep(2)
                         try:
                             filej = open(fname, 'r') 
                             this.dockedCargo = json.load(filej)
@@ -147,6 +149,8 @@ def worker(in_s):
                             cc = this.dockedCargo["Count"]
                             table = []
                             if (cc > 0):
+                                ## le fichier json n'est pas encore pret, il peut contenir les ancienne valeur
+                                time.sleep(2)
                                 try:
                                     filej = open(fname, 'r') 
                                     undockedCargo = json.load(filej)
