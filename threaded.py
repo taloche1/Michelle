@@ -81,14 +81,14 @@ def worker(in_s):
     global this
     fname = os.path.join(this.LogDir,'Cargo.json')
     local_loop = 0
-    settings.logger.info(this.url)
+    #settings.logger.info(this.url)
     settings.logger.info("worker init")
     Continue = True
     Erreur = False
     #TEST log in file
-    testname =  os.path.join(this.LogDir,'logSend.txt')
-    logt = open(testname, 'a')
-    logt.write('New session \n\n\n')
+    #testname =  os.path.join(this.LogDir,'logSend.txt')
+    #logt = open(testname, 'a')
+    #logt.write('New session \n\n\n')
   
 
     while Continue :
@@ -144,7 +144,7 @@ def worker(in_s):
                         #if undocked compare old json with new one
                         # si pas vide au depart
                         #settings.logger.info(f'avant {dockedCargo}')
-                        logt.write('Cargo avant  '+json.dumps(this.dockedCargo)+"\n")
+                        #logt.write('Cargo avant  '+json.dumps(this.dockedCargo)+"\n")
                         if this.dockedCargo:
                             cc = this.dockedCargo["Count"]
                             table = []
@@ -172,10 +172,10 @@ def worker(in_s):
                                     table.append(tete)
                                     transactions = []
                                     
-                                    logt.write('Cargo apres  '+json.dumps(undockedCargo)+"\n")
-                                    logt.write('MarketID apres  '+str(tete['marketId'])+"\n")
+                                    #logt.write('Cargo apres  '+json.dumps(undockedCargo)+"\n")
+                                    #logt.write('MarketID apres  '+str(tete['marketId'])+"\n")
                                     transactions = get_diff(this.dockedCargo, undockedCargo)
-                                    logt.write('transactions  '+json.dumps(transactions)+"\n")
+                                    #logt.write('transactions  '+json.dumps(transactions)+"\n")
                                     if (transactions):
                                         #settings.logger.info(transactions)
                                         tete['commodities'] = transactions  
@@ -183,23 +183,23 @@ def worker(in_s):
                                         #jsonoutstrip = jsonout.replace('"','')
                                         settings.logger.info(jsonout)
                                       
-                                        ts = str(time.time())
-                                        logt.writelines(ts + ' '+jsonout+"\n")
-                                        logt.flush()
+                                        #ts = str(time.time())
+                                        #logt.writelines(ts + ' '+jsonout+"\n")
+                                        #logt.flush()
                                         SendLine(jsonout)
                                         #time.sleep(0.2)
-                            else:
-                                logt.write('Undocked avec Cargo vide au moment du docked\n')
+                            #else:
+                                #logt.write('Undocked avec Cargo vide au moment du docked\n')
                         else:
                             settings.logger.warning('cannot read dockedcargo from memory')
-                    ts = str(time.time())
-                    logt.writelines(ts + ' '+lline+"\n")
-                    logt.flush()
+                    #ts = str(time.time())
+                    #logt.writelines(ts + ' '+lline+"\n")
+                    #logt.flush()
                     #settings.logger.info(lline)
                     SendLine(lline)
                                 
     settings.logger.info('fin worker')
-    logt.close()
+    #logt.close()
 
 def GetSendToServer(lline):
     global this
