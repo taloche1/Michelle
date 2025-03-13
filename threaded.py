@@ -112,6 +112,7 @@ def worker(in_s):
                     Continue = False
                     break
                 else: 
+                    #comput here because Michelle replay log at startup
                     if (lline.find("Location", 0, 80) > 0) and (not this.MarketID):
                         try:
                             j = json.loads(lline)
@@ -128,7 +129,15 @@ def worker(in_s):
                             this.dockedCargo = json.load(filej)
                             filej.close()
                         except:
-                            settings.logger.info('Erreur loading Cargo.json')   
+                            settings.logger.info('Erreur loading Cargo.json')  
+                        if (not this.MarketID):     # EDMC running, start ELITE
+                            try:
+                                j = json.loads(lline)
+                            except:
+                                settings.logger.error(f'Cannot load {lline} in json')
+                            this.MarketID = j['MarketID']
+                            settings.logger.info(f'load market id for init {this.MarketID}')   
+
                     elif (lline.find("Undocked",0, 80) > 0) or (lline.find("Shutdown",0, 80) > 0):
                         #if undocked compare old json with new one
                         # si pas vide au depart

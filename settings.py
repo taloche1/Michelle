@@ -40,7 +40,8 @@ class This:
         self.ComStatus = 0  #0 inconnu, 1 ok, 2 erreur de com
         self.dobeep = False
         self.isCheckedVer = False
-        self.checkVer = False  
+        self.checkVer = False 
+        self.shutdown = False
 
 this = This()
 
@@ -63,3 +64,4 @@ def clean():
      this.dockedCargo = None
      this.MarketID = None
      this.userName = ""
+     this.shutdown = False
