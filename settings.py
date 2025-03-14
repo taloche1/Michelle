@@ -42,6 +42,8 @@ class This:
         self.isCheckedVer = False
         self.checkVer = False 
         self.shutdown = False
+        self.traceSend = False
+        self.bountyBeep = True
 
 this = This()
 

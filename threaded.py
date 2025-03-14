@@ -7,6 +7,7 @@ import requests
 from requests.exceptions import ConnectTimeout
 import settings
 from config import config
+from datetime import datetime
 #from settings import This
 
 this = settings.this
@@ -86,11 +87,13 @@ def worker(in_s):
     Continue = True
     Erreur = False
     #TEST log in file
-    #testname =  os.path.join(this.LogDir,'logSend.txt')
-    #logt = open(testname, 'a')
-    #logt.write('New session \n\n\n')
-  
-
+    if this.traceSend:
+        testname =  os.path.join(this.LogDir,'logSend.txt')
+        open(testname, 'w').close()
+        now = datetime.now()
+        dt_string = now.strftime("%Y/%m/%d %H:%M:%S")
+        logt = open(testname, 'a')
+        logt.write(f'New session {dt_string}\n\n\n')
     while Continue :
         settings.logger.info(f'worker waiting')
         if this.eventtfm.wait():
@@ -101,8 +104,8 @@ def worker(in_s):
                 llinelist.append(this.dequetfm.popleft())
             this.lastlock.release() 
             this.eventtfm.clear()
+            settings.logger.info(f'{len(llinelist)} items to send')
             for lline in llinelist: 
-                #settings.logger.info(f'receive from q : {lline[0:150]}')
                 if (lline == ""):  
                     #settings.logger.debug("None")
                     erreur = False
@@ -111,18 +114,22 @@ def worker(in_s):
                     erreur = False
                     Continue = False
                     break
-                else: 
+                else:                     
+                    try:
+                        jj = json.loads(lline)
+                    except:
+                        settings.logger.error(f'Cannot load {lline} in json')
+                        continue
+                    #settings.logger.info(f'receive from q : {jj}')
+                    settings.logger.debug(jj['event'])
                     #comput here because Michelle replay log at startup
-                    if (lline.find("Location", 0, 80) > 0) and (not this.MarketID):
-                        try:
-                            j = json.loads(lline)
-                        except:
-                            settings.logger.error(f'Cannot load {lline} in json')
-                        if ("Docked" in j) and (j["Docked"] == True):
-                            #load marketid for init it in startup
-                            this.MarketID = j['MarketID']
-                            settings.logger.info(f'load market id for init {this.MarketID}')    
-                    if (lline.find("Docked", 0, 80) > 0):
+                    if (jj['event'] == 'Location') and (not this.MarketID):
+                        if ('Docked' in jj):
+                            if (jj["Docked"] == True):
+                                #load marketid for init it in startup
+                                this.MarketID = jj['MarketID']
+                                settings.logger.info(f'load market id for init {this.MarketID}')    
+                    if jj['event'] =='Docked':
                         #if docked take cargo.json
                         ## le fichier json n'est pas encore pret, il peut contenir les ancienne valeur
                         time.sleep(2)
@@ -131,20 +138,18 @@ def worker(in_s):
                             this.dockedCargo = json.load(filej)
                             filej.close()
                         except:
-                            settings.logger.info('Erreur loading Cargo.json')  
+                            settings.logger.info('Erreur loading Cargo.json') 
+                            continue
                         if (not this.MarketID):     # EDMC running, start ELITE
-                            try:
-                                j = json.loads(lline)
-                            except:
-                                settings.logger.error(f'Cannot load {lline} in json')
-                            this.MarketID = j['MarketID']
+                            this.MarketID = jj['MarketID']
                             settings.logger.info(f'load market id for init {this.MarketID}')   
 
-                    elif (lline.find("Undocked",0, 80) > 0) or (lline.find("Shutdown",0, 80) > 0):
+                    elif (jj['event'] == 'Undocked') or (jj['event'] == 'Shutdown'):
                         #if undocked compare old json with new one
                         # si pas vide au depart
                         #settings.logger.info(f'avant {dockedCargo}')
-                        #logt.write('Cargo avant  '+json.dumps(this.dockedCargo)+"\n")
+                        if this.traceSend:
+                            logt.write('Cargo avant  '+json.dumps(this.dockedCargo)+"\n")
                         if this.dockedCargo:
                             cc = this.dockedCargo["Count"]
                             table = []
@@ -157,49 +162,53 @@ def worker(in_s):
                                     filej.close()
                                 except:
                                     settings.logger.error('worker Cargo Erreur loading Cargo.json')
+                                    continue
                                 #settings.logger.info(f'apres {undockedCargo}')
                                 if (undockedCargo):
                                     tete = {}
-                                    j = json.loads(lline)
-                                    tete['timestamp'] = j['timestamp']
+                                    
+                                    tete['timestamp'] = jj['timestamp']
                                     tete['event'] = 'Deposit'
-                                    if ('MarketID' in j) :
-                                        tete['marketId'] = j['MarketID']
+                                    if ('MarketID' in jj) :
+                                        tete['marketId'] = jj['MarketID']
                                     else:
                                         tete['marketId'] = this.MarketID
                                         if (not this.MarketID):
                                             settings.logger.warning('cannot read MarketID from memory')
                                     table.append(tete)
-                                    transactions = []
-                                    
-                                    #logt.write('Cargo apres  '+json.dumps(undockedCargo)+"\n")
-                                    #logt.write('MarketID apres  '+str(tete['marketId'])+"\n")
+                                    transactions = [] 
                                     transactions = get_diff(this.dockedCargo, undockedCargo)
-                                    #logt.write('transactions  '+json.dumps(transactions)+"\n")
+                                    if this.traceSend:
+                                        logt.write('Cargo apres  '+json.dumps(undockedCargo)+"\n")
+                                        logt.write('MarketID apres  '+str(tete['marketId'])+"\n")
+                                        logt.write('transactions  '+json.dumps(transactions)+"\n")
                                     if (transactions):
                                         #settings.logger.info(transactions)
                                         tete['commodities'] = transactions  
                                         jsonout = json.dumps(tete)
                                         #jsonoutstrip = jsonout.replace('"','')
                                         settings.logger.info(jsonout)
-                                      
-                                        #ts = str(time.time())
-                                        #logt.writelines(ts + ' '+jsonout+"\n")
-                                        #logt.flush()
+                                        if this.traceSend:
+                                            ts = str(time.time())
+                                            logt.writelines(ts + ' '+jsonout+"\n")
+                                            logt.flush()
                                         SendLine(jsonout)
-                                        #time.sleep(0.2)
-                            #else:
-                                #logt.write('Undocked avec Cargo vide au moment du docked\n')
+                    
+                            else:
+                                if this.traceSend:
+                                    logt.write('Undocked ou Shutdown avec Cargo vide au moment du docked\n')
                         else:
                             settings.logger.warning('cannot read dockedcargo from memory')
-                    #ts = str(time.time())
-                    #logt.writelines(ts + ' '+lline+"\n")
-                    #logt.flush()
+                    if this.traceSend:
+                        ts = str(time.time())
+                        logt.writelines(ts + ' '+lline+"\n")
+                        logt.flush()
                     #settings.logger.info(lline)
                     SendLine(lline)
                                 
     settings.logger.info('fin worker')
-    #logt.close()
+    if this.traceSend:
+        logt.close()
 
 def GetSendToServer(lline):
     global this

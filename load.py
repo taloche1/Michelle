@@ -68,8 +68,9 @@ dir_path = ''
 # 09/03/25 3.30 : cargo management on docked and undocked
 # 11/03/25 3.31 : split code in modules and fix Deposit timestamp fixinit load Cargo and Market
 # 11/03/25 3.32 : fix init Cargo and Market with market fleet bug fix shutdown remove ShutDown
+# 14/03/25 3.33 : Add entry in config for bountybeep and traceSend and ShutDown
 
-PLUGIN_NAME = 'Michelle_3.32'
+PLUGIN_NAME = 'Michelle_3.33'
   
 
       
@@ -104,6 +105,8 @@ def plugin_start3(plugin_dir: str) -> str:
     this.LogDir = parser.get('UserConfig', 'EliteLogFile')
     this.url = parser.get('UserConfig', 'SM_Adress')
     beppbeep = parser.get('UserConfig', 'HostileBeep')
+    this.bountyBeep = parser.get('UserConfig', 'BountyBeep')
+    this.traceSend = parser.get('UserConfig', 'TraceSend')
     listofhidden = parser.get('UserConfig', 'HiddenCMDRs').upper()
     this.userNotSend = listofhidden.split(",")
     #settings.logger.info("CMDRs not to send : "+listofhidden)
@@ -168,8 +171,7 @@ def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry
     global this
     global IFFSQR
 
-    #settings.logger.info("receive entry "+entry["event"])
-
+    #settings.logger.info("receive entry "+entry["event"]
     # a tester from monitor import monitor   monitor.is_live_galaxy()
 
     if (this.isCheckedVer == False):
@@ -221,10 +223,10 @@ def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry
              #send shutdown to server
              forceSend(entry["event"])
              #shutdown est la dernier ecriture du log et pas fini par un CRLF donc pas lisible immediatement. 
-        # elif (entry["event"] == "ShutDown"):
-        #     settings.logger.info('receive ShutDown')
-        #     #crash game, start menu, stop game
-        #     forceSendCrash()
+        elif (entry["event"] == "ShutDown"):
+            settings.logger.info('receive ShutDown')
+            #crash game, start menu, stop game
+            forceSendCrash()
         elif (entry["event"] == "Location") and (not this.MarketID):
             if ("Docked" in entry) and (entry["Docked"] == True):
                   #load marketid for init it in startup
@@ -236,7 +238,8 @@ def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry
             this.dockedCargo = entry
             settings.logger.info(f'read Cargo for init {this.dockedCargo}')         
             
-        checkbounty(entry)
+        if this.bountyBeep:
+            checkbounty(entry)
         cestpartie()
 
 def displayTxtok(txt):
