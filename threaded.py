@@ -91,7 +91,7 @@ def worker(in_s):
     #TEST log in file
     if this.traceSend:
         testname =  os.path.join(this.LogDir,'logSend.txt')
-        #open(testname, 'w').close()
+        open(testname, 'w').close()
         now = datetime.now()
         dt_string = now.strftime("%Y/%m/%d %H:%M:%S")
         logt = open(testname, 'a')
