@@ -69,8 +69,9 @@ dir_path = ''
 # 11/03/25 3.31 : split code in modules and fix Deposit timestamp fixinit load Cargo and Market
 # 11/03/25 3.32 : fix init Cargo and Market with market fleet bug fix shutdown remove ShutDown
 # 14/03/25 3.33 : Add entry in config for bountybeep and traceSend and ShutDown
+# 15/03/25 3.34 : fix passage par menu demarrer / redemarrage du jeux
 
-PLUGIN_NAME = 'Michelle_3.33'
+PLUGIN_NAME = 'Michelle_3.34'
   
 
       
@@ -165,8 +166,8 @@ def FindLog():
         this.CurrentLogFile = newest
         settings.logger.info("Open new log file "+ this.CurrentLogFile)
     else:
-        settings.logger.info("keep old log file "+ this.CurrentLogFile) 
-
+        settings.logger.info("keep old log file "+ this.CurrentLogFile)
+      
 def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry: dict, state: dict) -> None:
     global this
     global IFFSQR
@@ -201,9 +202,10 @@ def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry
         settings.logger.info("Maybe new log file " +entry["event"])
         FindLog()
         #load Cargo for init : EDMC lauched,  Elite start menu (to be confirme)
-        if not this.dockedCargo:
-            this.dockedCargo = state['CargoJSON']
-            settings.logger.info(f'read Cargo for init {this.dockedCargo}')
+        # trop tot !
+        # if not this.dockedCargo:
+        #     this.dockedCargo = state['CargoJSON']
+        #     settings.logger.info(f'read Cargo for init {this.dockedCargo}')
     
 
     if (this.userName != cmdrname):
@@ -227,16 +229,16 @@ def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry
             settings.logger.info('receive ShutDown')
             #crash game, start menu, stop game
             forceSendCrash()
-        elif (entry["event"] == "Location") and (not this.MarketID):
-            if ("Docked" in entry) and (entry["Docked"] == True):
-                  #load marketid for init it in startup
-                  this.Market_ID = entry['MarketID']
-                  settings.logger.info(f'load market id for init {this.MarketID}')  
-        elif (entry["event"] == "Cargo") and (not this.dockedCargo):
-            #load Cargo for init : EDMC lauched, start Elite
-            #settings.logger.info(f' Entry  Cargo {entry}')
-            this.dockedCargo = entry
-            settings.logger.info(f'read Cargo for init {this.dockedCargo}')         
+        # elif (entry["event"] == "Location") and (not this.MarketID):
+        #     if ("Docked" in entry) and (entry["Docked"] == True):
+        #           #load marketid for init it in startup
+        #           this.Market_ID = entry['MarketID']
+        #           settings.logger.info(f'load market id for init {this.MarketID}')  
+        # elif (entry["event"] == "Cargo") and (not this.dockedCargo):
+        #     #load Cargo for init : EDMC lauched, start Elite
+        #     #settings.logger.info(f' Entry  Cargo {entry}')
+        #     this.dockedCargo = entry
+        #     settings.logger.info(f'read Cargo for init {this.dockedCargo}')         
             
         if this.bountyBeep:
             checkbounty(entry)
@@ -376,6 +378,11 @@ def vidagefile():
 
     displayTxtok("fin lecture log")            
     settings.logger.info(f"fin vidagefile ({nbtoparse})" )
+    this.lastlock.acquire()
+    this.dequetfm.append("FINFILE")  
+    this.lastlock.release()
+    this.eventtfm.set()
+    
     if (nbtoparse < 200):
         time.sleep(0.2) 
 

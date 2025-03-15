@@ -44,6 +44,7 @@ class This:
         self.shutdown = False
         self.traceSend = False
         self.bountyBeep = True
+   
 
 this = This()
 
@@ -68,4 +69,5 @@ def clean():
      this.userName = ""
      this.shutdown = False
      this.MarketID = None
-     this.dockedCargo = None
+     #this.dockedCargo = None  surtout pas, si passage par menu demarrer, il est encore bon.
+     
