@@ -71,7 +71,7 @@ dir_path = ''
 # 14/03/25 3.33 : Add entry in config for bountybeep and traceSend and ShutDown
 # 15/03/25 3.34 : fix passage par menu demarrer / redemarrage du jeux
 # 23/03/25 3.35 : Add delay for cargo json read at restart (2 to 4 s) Add sound if lose com with server
-# xx/03/25 3.35 : test perte reprise de com / fix reload undock count before finfile
+# xx/03/25 3.36 : test perte reprise de com / fix reload undock count before finfile
 
 PLUGIN_NAME = 'Michelle_3.36'
   
@@ -126,8 +126,8 @@ def plugin_start3(plugin_dir: str) -> str:
     this.threadGet = Thread(target=threaded.GetWaitter, name='EDTFMv2GET', args = (this.eventtfmGet, ))
     this.threadGet.daemon = False 
     this.threadGet.start()
-    FindLog() 
     dir_path = os.path.dirname(os.path.realpath(__file__))
+    FindLog() 
     return PLUGIN_NAME
 
 def plugin_stop() -> None:
@@ -201,23 +201,22 @@ def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry
     if (this.checkVer == False):
         return
 
-    if (this.userName != cmdrname):
-        settings.clean()
-        #settings.logger.info(f'cmdrname {this.userName}  {cmdrname}')
-        this.userName = cmdrname
-        if ( cmdrname.upper() in this.userNotSend):
-            this.isHidden = True
-            status = tk.Label(IFFSQR, text="hidden CMDR", foreground="Yellow",bg="black") 
-            status.grid(row=0, column=1, sticky='nesw')
-            settings.logger.info("Commandant "+ cmdrname + " NOT SEND") 
-        else:
-            this.isHidden = False
-            settings.logger.info("Commandant "+ this.userName) 
-            vidagefile()
-    
     if (entry["event"] == "StartUp" or entry["event"] == "LoadGame"):             
         settings.logger.info("Maybe new log file " +entry["event"])
         FindLog()
+        if (this.userName != cmdrname):
+            settings.clean()
+            settings.logger.info(f'cmdrname - {this.userName} - {cmdrname} -')
+            this.userName = cmdrname
+            if ( cmdrname.upper() in this.userNotSend):
+                this.isHidden = True
+                status = tk.Label(IFFSQR, text="hidden CMDR", foreground="Yellow",bg="black") 
+                status.grid(row=0, column=1, sticky='nesw')
+                settings.logger.info("Commandant "+ cmdrname + " NOT SEND") 
+            else:
+                this.isHidden = False
+                settings.logger.info("Commandant "+ this.userName) 
+                vidagefile()
     
     elif (entry["event"] == "Shutdown"):
             settings.logger.info('receive Shutdown')

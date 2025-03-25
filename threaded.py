@@ -65,9 +65,9 @@ def SendLine(lline):
             #stop send to serveur for 10 seconds x 3 (10 sec for permit stop app) try resend lline after
             for number in range(3):
                 time.sleep(10)
-                settings.logger.warning("waite 10s")
+                #settings.logger.warning("waite 10s")
             # on ne sort jamais sauf correction de erreur de com du while
-                if config.shutting_down:
+                if  this.Continue == False:
                     erreur = False
                     break
         else:

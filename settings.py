@@ -64,6 +64,7 @@ def init():
         logger.addHandler(logger_channel)
 
 def clean():
+     logger.info("Clean settings")
      this.dockedCargo = None
      this.MarketID = None
      this.userName = ""
