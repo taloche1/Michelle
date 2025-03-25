@@ -16,7 +16,7 @@ from collections import deque
 
 
 from config import appname
-from config import config
+#from config import config
 
 from typing import Optional, Tuple
 import tkinter as tk
@@ -70,8 +70,10 @@ dir_path = ''
 # 11/03/25 3.32 : fix init Cargo and Market with market fleet bug fix shutdown remove ShutDown
 # 14/03/25 3.33 : Add entry in config for bountybeep and traceSend and ShutDown
 # 15/03/25 3.34 : fix passage par menu demarrer / redemarrage du jeux
+# 23/03/25 3.35 : Add delay for cargo json read at restart (2 to 4 s) Add sound if lose com with server
+# xx/03/25 3.35 : test perte reprise de com / fix reload undock count before finfile
 
-PLUGIN_NAME = 'Michelle_3.34'
+PLUGIN_NAME = 'Michelle_3.36'
   
 
       
@@ -156,7 +158,10 @@ def FindLog():
     global this
     this.userName = ""
     this.isCheckedVer = False
-    files = [os.path.join(this.LogDir, x) for x in os.listdir(this.LogDir) if x.endswith(".log")]
+    try:
+         files = [os.path.join(this.LogDir, x) for x in os.listdir(this.LogDir) if x.endswith(".log")]
+    except:
+         settings.logger.error(f'Fichier de configuration repertoire des log pas bon')
     newest = max(files , key = os.path.getctime)
     if (newest != this.CurrentLogFile):
         # close old log , open new
@@ -177,6 +182,10 @@ def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry
 
     if (this.isCheckedVer == False):
         this.isCheckedVer = True  
+        if (this.url == ""):
+            status = tk.Label(IFFSQR, text="Erreur url not set", foreground="red",bg="black") 
+            status.grid(row=0, column=1, sticky='nesw')
+            return
         if 'GameVersion' in state:
             gv = state['GameVersion']
             settings.logger.info('GameVersion ' +gv)
@@ -192,23 +201,9 @@ def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry
     if (this.checkVer == False):
         return
 
-    if (this.url == ""):
-        status = tk.Label(IFFSQR, text="Erreur url not set", foreground="red",bg="black") 
-        status.grid(row=0, column=1, sticky='nesw')
-        return
-    if (entry["event"] == "StartUp" or entry["event"] == "LoadGame"):
-        #clean global
-        settings.clean()
-        settings.logger.info("Maybe new log file " +entry["event"])
-        FindLog()
-        #load Cargo for init : EDMC lauched,  Elite start menu (to be confirme)
-        # trop tot !
-        # if not this.dockedCargo:
-        #     this.dockedCargo = state['CargoJSON']
-        #     settings.logger.info(f'read Cargo for init {this.dockedCargo}')
-    
-
     if (this.userName != cmdrname):
+        settings.clean()
+        #settings.logger.info(f'cmdrname {this.userName}  {cmdrname}')
         this.userName = cmdrname
         if ( cmdrname.upper() in this.userNotSend):
             this.isHidden = True
@@ -217,32 +212,27 @@ def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry
             settings.logger.info("Commandant "+ cmdrname + " NOT SEND") 
         else:
             this.isHidden = False
-            settings.logger.info("Commandant "+ this.userName)  
+            settings.logger.info("Commandant "+ this.userName) 
             vidagefile()
-    else:      
-        if (entry["event"] == "Shutdown"):
-             settings.logger.info('receive Shutdown')
-             #send shutdown to server
-             forceSend(entry["event"])
-             #shutdown est la dernier ecriture du log et pas fini par un CRLF donc pas lisible immediatement. 
-        elif (entry["event"] == "ShutDown"):
-            settings.logger.info('receive ShutDown')
-            #crash game, start menu, stop game
-            forceSendCrash()
-        # elif (entry["event"] == "Location") and (not this.MarketID):
-        #     if ("Docked" in entry) and (entry["Docked"] == True):
-        #           #load marketid for init it in startup
-        #           this.Market_ID = entry['MarketID']
-        #           settings.logger.info(f'load market id for init {this.MarketID}')  
-        # elif (entry["event"] == "Cargo") and (not this.dockedCargo):
-        #     #load Cargo for init : EDMC lauched, start Elite
-        #     #settings.logger.info(f' Entry  Cargo {entry}')
-        #     this.dockedCargo = entry
-        #     settings.logger.info(f'read Cargo for init {this.dockedCargo}')         
+    
+    if (entry["event"] == "StartUp" or entry["event"] == "LoadGame"):             
+        settings.logger.info("Maybe new log file " +entry["event"])
+        FindLog()
+    
+    elif (entry["event"] == "Shutdown"):
+            settings.logger.info('receive Shutdown')
+            #send shutdown to server
+            forceSend(entry["event"])
+            #shutdown est la dernier ecriture du log et pas fini par un CRLF donc pas lisible immediatement. 
+    elif (entry["event"] == "ShutDown"):
+        settings.logger.info('receive ShutDown')
+        #crash game, start menu, stop game
+        forceSendCrash()     
             
-        if this.bountyBeep:
-            checkbounty(entry)
-        cestpartie()
+    if this.bountyBeep:
+        checkbounty(entry)
+
+    cestpartie()
 
 def displayTxtok(txt):
     global IFFSQR
@@ -352,9 +342,16 @@ def ret_erno(event=None) -> None:
     this.lastlock.acquire()
     comstatus = this.ComStatus
     this.lastlock.release()
+    settings.logger.info(f'Main Event Comm {comstatus}')
     if (comstatus == 2):
         status = tk.Label(IFFSQR, text="Erreur "+this.url, foreground="red",bg="black") 
         status.grid(row=0, column=1, sticky='nesw')
+        frequency = 900  # Set Frequency in Hertz
+        duration = 150  # Set Duration in ms
+        winsound.Beep(frequency, duration)  
+        time.sleep(0.5)
+        winsound.Beep(frequency, duration)  
+
     if (comstatus == 1):
         status = tk.Label(IFFSQR, text="Reprise des communications", foreground="green",bg="black") 
         status.grid(row=0, column=1, sticky='nesw')  
@@ -362,6 +359,10 @@ def ret_erno(event=None) -> None:
 
 def vidagefile():
     global this 
+    this.lastlock.acquire()
+    this.dequetfm.append("RESTART")  
+    this.lastlock.release()
+    this.eventtfm.set()
     settings.logger.info("vidagefile")
     nbtoparse = 0
     for line in this.f:
