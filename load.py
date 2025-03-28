@@ -69,7 +69,7 @@ dir_path = ''
 # 11/03/25 3.31 : split code in modules and fix Deposit timestamp fixinit load Cargo and Market
 # 11/03/25 3.32 : fix init Cargo and Market with market fleet bug fix shutdown remove ShutDown
 # 14/03/25 3.33 : Add entry in config for bountybeep and traceSend and ShutDown
-# 15/03/25 3.34 : fix passage par menu demarrer / redemarrage du jeux
+# 15/03/25 3.34 : fix passage par menu demarrer / redemarrage du jeux test
 
 PLUGIN_NAME = 'Michelle_3.34'
   
