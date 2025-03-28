@@ -44,6 +44,9 @@ class This:
         self.shutdown = False
         self.traceSend = False
         self.bountyBeep = True
+        self.updatepending = False
+        self.currentversion = 1.00
+        self.autoupdate = True
    
 
 this = This()

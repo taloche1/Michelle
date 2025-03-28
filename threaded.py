@@ -9,9 +9,19 @@ import settings
 #from config import config
 from datetime import datetime
 #from settings import This
+import autoupdater
 
 this = settings.this
 
+def check_version():
+    global this
+    auto_updater = autoupdater.AutoUpdater()
+    last_version = auto_updater.get_version()
+    settings.logger.info(f'current version {this.currentversion} server : {last_version}')
+    if this.currentversion < last_version:
+        settings.logger.info('Update pending')
+    #if this.currentversion != last_version:
+        this.updatepending = True
 
 def SendToServer(lline):
     Erreur = False
@@ -86,6 +96,7 @@ def SendLine(lline):
 
 def worker(in_s):
     global this
+    check_version()
     fname = os.path.join(this.LogDir,'Cargo.json')
     local_loop = 0
     #settings.logger.info(this.url)

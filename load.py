@@ -24,6 +24,7 @@ import winsound
 
 import settings
 import threaded
+import autoupdater
 
 
 
@@ -72,8 +73,9 @@ dir_path = ''
 # 15/03/25 3.34 : fix passage par menu demarrer / redemarrage du jeux
 # 23/03/25 3.35 : Add delay for cargo json read at restart (2 to 4 s) Add sound if lose com with server
 # xx/03/25 3.36 : test perte reprise de com / fix reload undock count before finfile
+# 28/03/25 3.40 : Add autoupdate
 
-PLUGIN_NAME = 'Michelle_3.36'
+PLUGIN_NAME = 'Michelle_3.40'
   
 
       
@@ -87,7 +89,10 @@ def plugin_app(parent: tk.Frame) -> tk.Frame:
     global IFFSQR
     IFFSQR = tk.Frame(parent)
    
-    label = tk.Label(IFFSQR, text=PLUGIN_NAME+" : ")  # By default widgets inherit the current theme's colors
+    if (this.updatepending):
+        label = tk.Label(IFFSQR, text=PLUGIN_NAME+" : ",foreground="red",bg="black")
+    else: 
+        label = tk.Label(IFFSQR, text=PLUGIN_NAME+" : ")  # By default widgets inherit the current theme's colors
     label.grid(row=0, column=0, sticky=tk.W)
     status = tk.Label(IFFSQR, text="Lecture log", foreground="yellow")  # Override theme's foreground color
     status.grid(row=0, column=1, sticky='nesw')
@@ -110,6 +115,8 @@ def plugin_start3(plugin_dir: str) -> str:
     beppbeep = parser.get('UserConfig', 'HostileBeep')
     this.bountyBeep = parser.get('UserConfig', 'BountyBeep')
     this.traceSend = parser.get('UserConfig', 'TraceSend')
+    this.autoupdate = parser.get('UserConfig', 'AutoUpdate')
+    settings.logger.info(f'AutoUpdate : {this.autoupdate}')
     listofhidden = parser.get('UserConfig', 'HiddenCMDRs').upper()
     this.userNotSend = listofhidden.split(",")
     #settings.logger.info("CMDRs not to send : "+listofhidden)
@@ -119,6 +126,9 @@ def plugin_start3(plugin_dir: str) -> str:
         status = tk.Label(IFFSQR, text="Erreur url not set", foreground="red") 
         status.grid(row=0, column=1, sticky='nesw')
         return PLUGIN_NAME
+    ver = PLUGIN_NAME.split('_',2)
+    this.currentversion = ver[1]
+    settings.logger.info(f'Version en cours {this.currentversion}')
     settings.logger.debug('lancement worker thread...')
     this.thread = Thread(target=threaded.worker, name='EDTFMv2', args = (this.eventtfm, ))
     this.thread.daemon = False 
@@ -152,7 +162,23 @@ def plugin_stop() -> None:
     settings.logger.info('Plugin STOP threads joint')
     this.thread = None
     this.threadGet = None
+    if this.updatepending and this.autoupdate :
+        plugin_update()
     return 
+
+def plugin_update():
+    auto_updater = autoupdater.AutoUpdater()
+    downloaded = auto_updater.download_latest()
+    if downloaded:
+        settings.logger.info("Download successful, creating a backup.")
+        auto_updater.make_backup()
+        settings.logger.info("Cleaning old backups.")
+        auto_updater.clean_old_backups()
+        settings.logger.info("Extracting latest version.")
+        #auto_updater.extract_latest()
+        settings.logger.info("Cleaning update version.")
+        #auto_updater.clean_update()
+
 
 def FindLog():
     global this
@@ -197,6 +223,7 @@ def journal_entry(cmdrname: str, is_beta: bool, system: str, station: str, entry
 
         if ( this.checkVer == False):
             status = tk.Label(IFFSQR, text="Elite release must be >= 4", foreground="red",bg="black") 
+            status.grid(row=0, column=1, sticky='nesw')  
 
     if (this.checkVer == False):
         return
@@ -356,7 +383,8 @@ def ret_erno(event=None) -> None:
         status.grid(row=0, column=1, sticky='nesw')  
         frequency = 900  # Set Frequency in Hertz
         duration = 200  # Set Duration in ms
-        winsound.Beep(frequency, duration)  
+        winsound.Beep(frequency, duration) 
+   
 #fin display erreur com
 
 def vidagefile():
