@@ -354,6 +354,9 @@ def ret_erno(event=None) -> None:
     if (comstatus == 1):
         status = tk.Label(IFFSQR, text="Reprise des communications", foreground="green",bg="black") 
         status.grid(row=0, column=1, sticky='nesw')  
+        frequency = 900  # Set Frequency in Hertz
+        duration = 200  # Set Duration in ms
+        winsound.Beep(frequency, duration)  
 #fin display erreur com
 
 def vidagefile():
