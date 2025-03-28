@@ -175,9 +175,9 @@ def plugin_update():
         settings.logger.info("Cleaning old backups.")
         auto_updater.clean_old_backups()
         settings.logger.info("Extracting latest version.")
-        #auto_updater.extract_latest()
+        auto_updater.extract_latest()
         settings.logger.info("Cleaning update version.")
-        #auto_updater.clean_update()
+        auto_updater.clean_update()
 
 
 def FindLog():
