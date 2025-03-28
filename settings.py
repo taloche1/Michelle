@@ -44,6 +44,9 @@ class This:
         self.shutdown = False
         self.traceSend = False
         self.bountyBeep = True
+        self.updatepending = False
+        self.currentversion = 1.00
+        self.autoupdate = True
    
 
 this = This()
@@ -64,6 +67,7 @@ def init():
         logger.addHandler(logger_channel)
 
 def clean():
+     logger.info("Clean settings")
      this.dockedCargo = None
      this.MarketID = None
      this.userName = ""
